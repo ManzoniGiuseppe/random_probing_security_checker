@@ -1,10 +1,22 @@
 #!/bin/bash
 
+
+#-- header
+
+
 if [ "$#" -ne 2 ] ; then
-  echo 'params: <gadget>.sage <maxCoeff>'
+  echo 'params: <gadget.sage> <maxCoeff>'
   exit
 fi
 
+if [ ! -e "$1" ] ; then
+  echo 'params: <gadget.sage> <maxCoeff>'
+  echo 'ERR: the file with the gadget must exist.'
+  exit
+fi
+
+
+# create temporary files
 trap 'rm -f "$tmp" "$tmp_c" "$tmp_input"' EXIT
 tmp=$(mktemp) || exit 1
 tmp_input=$(mktemp) || exit 1
@@ -13,7 +25,11 @@ tmp_c=$(mktemp).c || exit 1
 # save file in case it's from a pipe
 cat $1 > $tmp_input
 
-# get '#' info
+
+#-- get info and input preprocessing
+
+
+# get info from '#' lines
 d=$(cat $tmp_input | grep '#SHARES' | sed 's/#SHARES //')
 numRnd=$(cat $tmp_input | grep '#RANDOMS' | sed 's/#RANDOMS //;s/ /\n/g' | wc -l)
 numUndIns=$(cat $tmp_input | grep '#IN' | sed 's/#IN //;s/ /\n/g' | wc -l)
@@ -22,116 +38,95 @@ ins=$(cat $tmp_input | grep '#IN' | sed 's/#IN //')
 outs=$(cat $tmp_input | grep '#OUT' | sed 's/#OUT //')
 randoms=$(cat $tmp_input | grep '#RANDOMS' | sed 's/#RANDOMS //')
 
-# remove comments and empty lines
-cat $tmp_input | sed 's/^#.*$//;s/^[^a-z0-9]*$//' | sed "s/^[ \t]*//" | grep -v '^$' > $tmp
+# remove comments, leading and trailing spaces and empty lines
+cat $tmp_input | sed 's/^#.*$//;s/^[ \t]*//;s/[ \t]*$//' | grep -v '^$' > $tmp
 cat $tmp > $tmp_input
 
-# get variables assigned to
+# get info from the input files
 vars="$(cat $tmp_input | sed 's/ .*$/,/' | sort | uniq | tr '\n' ' ' | sed 's/, $//')"
+numLines=$(cat $tmp_input | wc -l)
+numIns=$[ numUndIns * d + numRnd ]
+numProb=$[ numLines - numUndOuts * d + numIns ]
+numOuts=$[ numUndOuts * d + numProb ]
+inputProbesOffset=$[ numOuts - numIns ]
 
 
-# translate the compuations
-current=$[ numUndOuts * d ]
-used=";"
-cat $tmp_input | while read l ; do
-  # result
-  v0=$(echo "$l" | sed 's/ .*$//')
-  # input 1
-  v1=$(echo "$l" | sed 's/^[^=]*= *//;s/ *[+*].*$//')
-  # input 2
-  v2=$(echo "$l" | sed 's/^.*[+*] *//')
+#-- preliminary translation, from variable names to 'ret[index]' i.e. directly use the array of output probes and outputs to store things
 
-  # multiplicity for v1
-  echo "  ret[${current}] = ${v1};"
-  current=$[ current + 1 ]
-  if grep -q ";${v1};" <(echo "${used}") ; then
-    echo "  ret[${current}] = ${v1};"
-    current=$[ current + 1 ]
-  else
-    used=$(echo "${used}${v1};")
-  fi
-
-  # multiplicity for v2
-  echo "  ret[${current}] = ${v2};"
-  current=$[ current + 1 ]
-  if grep -q ";${v2};" <(echo "${used}") ; then
-    echo "  ret[${current}] = ${v2};"
-    current=$[ current + 1 ]
-  else
-    used=$(echo "${used}${v2};")
-  fi
-
-  # new out means to reset the usage
-  used=$(echo "$used" | sed "s/;${v0};/;/" )
-
-  # print the calculation
-  echo "  $l;" | tr '+*' '^&'
-done > $tmp
-
-
-
-
-
-# get info
-numProb=$(cat $tmp | grep "^  ret\[.*\] = " | wc -l)
-numIns=$[ numRnd + numUndIns * d ]
-numOuts=$[ numProb + numUndOuts * d ]
-
-
-
-# start the c file
-echo -n > $tmp_c
-
-# add the needed defines
-echo "#define NUM_INS ${numUndIns}" >> $tmp_c
-echo "#define NUM_OUTS ${numUndOuts}" >> $tmp_c
-echo "#define D ${d}" >> $tmp_c
-echo "#define NUM_RANDOMS ${numRnd}" >> $tmp_c
-echo "#define NUM_PROBES ${numProb}" >> $tmp_c
-echo "#define MAX_COEFF ${2}" >> $tmp_c
-
-# add the c engine
-cat main.c >> $tmp_c
-
-# define the gadget function
-echo 'void gadget(bool x[NUM_TOT_INS], bool ret[NUM_TOT_OUTS]){' >> $tmp_c
-
-# add inputs variables from the input vector
-current=0
-for letter in $ins ; do
-  for i in $(seq 0 $[d - 1]) ; do
-    echo "  bool ${letter}${i} = x[${current}];" >> $tmp_c
-    current=$[current + 1]
+# it outputs a sed script to substitute the inputs in the code
+genStript_substituteInputs(){
+  numIn=$inputProbesOffset # first of the probes on the input
+  for letter in $ins ; do
+    for i in $(seq 0 $[d - 1]) ; do
+      echo "s/\b${letter}${i}\b/ret[${numIn}]/g"  # substitute every occurrence with its probe
+      numIn=$[numIn + 1]
+    done
   done
+  for letters in $randoms ; do
+    echo "s/\b${letters}\b/ret[${numIn}]/g"  # substitute every occurrence with its probe
+    numIn=$[numIn + 1]
+  done
+}
+
+# it outputs a sed script to mark the outputs in the code
+genScript_markOutputs(){
+  for letter in $outs ; do
+    for i in $(seq 0 $[d - 1]) ; do
+      echo "0,/^${letter}${i}\b/s//!${letter}${i}/" # it adds a '!' before the first assignment to any output with the actual output (the input is reversed by tac, so the ! goes to the last assignment to the output)
+    done
+  done
+}
+
+# translate
+cat $tmp_input | sed -f <(genStript_substituteInputs) | tac | sed -f <(genScript_markOutputs) | tac | ./replace_internal_variables.py $[numUndOuts * d] > $tmp
+cat $tmp > $tmp_input
+
+#-- create the c file
+
+# add inputs probes from the input vector
+echo -n > $tmp
+for i in $(seq 0 $[numIns - 1]) ; do
+  echo "ret[$[i + inputProbesOffset]] = x[${i}]" >> $tmp
 done
 
-# add random variables from the input vector
-echo $randoms | sed 's/ /\n/g' | awk "BEGIN {i = ${current}} ; "'{print "  bool " $1 " = x[" i++ "];" } ' >> $tmp_c
+multeplicity_array="$(cat $tmp_input | ./get_probes_multipicity.py $[numUndOuts * d] $numProb | tr '[]' '{}')"
 
-# define variables
-echo "  bool $vars;" >> $tmp_c
+cat > $tmp_c << EOF
+#define NUM_INS ${numUndIns}
+#define NUM_OUTS ${numUndOuts}
+#define D ${d}
+#define NUM_RANDOMS ${numRnd}
+#define NUM_PROBES ${numProb}
+#define MAX_COEFF ${2}
 
-#place the computations
-cat $tmp >> $tmp_c
+#define TOT_MUL_PROBES $(echo "${multeplicity_array}" | tr '{},' '  \n'| awk '{s+=$1} END {print s}')
+
+int multeplicity[NUM_PROBES] = ${multeplicity_array};
+
+$(cat main.c)
+
+void gadget(bool x[NUM_TOT_INS], bool ret[NUM_TOT_OUTS]){
+$(cat $tmp $tmp_input | sed "s/^/  /;s/$/;/" | tr '+*' '^&')
+}
+EOF
 
 
+#-- finalize
 
-
-
-# save the outputs
-current=0
-for letter in $outs ; do
-  for i in $(seq 0 $[d-1]) ; do
-    echo "  ret[${current}] = ${letter}${i};"
-    current=$[ current + 1 ]
-  done
-done >> $tmp_c
-
-# terminate the gadget function
-echo '}' >> $tmp_c
 
 # print to allow doublechecking
-cat $tmp_c
+#cat $tmp_c
+
+cat << EOF
+#define NUM_INS ${numUndIns}
+#define NUM_OUTS ${numUndOuts}
+#define D ${d}
+#define NUM_RANDOMS ${numRnd}
+#define NUM_PROBES ${numProb}
+#define MAX_COEFF ${2}
+
+#define TOT_MUL_PROBES $(echo "${multeplicity_array}" | tr '{},' '  \n'| awk '{s+=$1} END {print s}')
+EOF
 
 # compile
 gcc -O3 -Wall $tmp_c -o $tmp
