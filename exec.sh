@@ -115,18 +115,7 @@ EOF
 
 
 # print to allow doublechecking
-#cat $tmp_c
-
-cat << EOF
-#define NUM_INS ${numUndIns}
-#define NUM_OUTS ${numUndOuts}
-#define D ${d}
-#define NUM_RANDOMS ${numRnd}
-#define NUM_PROBES ${numProb}
-#define MAX_COEFF ${2}
-
-#define TOT_MUL_PROBES $(echo "${multeplicity_array}" | tr '{},' '  \n'| awk '{s+=$1} END {print s}')
-EOF
+cat $tmp_c | head
 
 # compile
 gcc -O3 -Wall $tmp_c -o $tmp

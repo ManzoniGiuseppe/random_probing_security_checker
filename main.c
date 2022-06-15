@@ -23,6 +23,7 @@
 #define NUM_COLS (1ll << NUM_TOT_INS)
 #define NUM_ROWS (1ll << NUM_TOT_OUTS)
 
+#define NUM_NORND_COLS (1ll << (NUM_INS * D))
 
 
 // ensure evering fits in the chosen types
@@ -56,7 +57,7 @@ typedef uint64_t fixed_sum_t; // fixed point notation 1.(NUM_TOT_INS+1)
 typedef struct matrix_row{
   bool wasInited;
   bitarray_t plain[(NUM_COLS+63) / 64]; // the xored outputs of the function
-  fixed_cell_t transformed[NUM_COLS];  // the transformed outputs: the actual row
+  fixed_cell_t transformed[NUM_NORND_COLS];  // the transformed outputs: the actual row. it doesn't save the ones with the coordinates of the randoms \neq 0 as they're never used.
 } matrix_row_t;
 
 
@@ -112,16 +113,22 @@ void inPlace_transform(fixed_cell_t *tr, col_t size){ // tr must have 1 for fals
     tr[i+h] = a - b;
   }
   inPlace_transform(tr, h);
-  inPlace_transform(tr + h, h);
+  if(NUM_NORND_COLS > h){
+    inPlace_transform(tr + h, h);
+  }
 }
 
 // after setting plain to its value, call this to set the rest
 void finalizze_row(matrix_row_t* row){
   static const fixed_cell_t val[2] = {1, -1};
+  fixed_cell_t transformed[NUM_COLS];
   for(col_t i =0; i < NUM_COLS; i++){
-    row->transformed[i] = val[GET_PLAIN(row->plain, i)];
+    transformed[i] = val[GET_PLAIN(row->plain, i)];
   }
-  inPlace_transform(row->transformed, NUM_COLS);
+  inPlace_transform(transformed, NUM_COLS);
+  for(col_t i =0; i < NUM_NORND_COLS; i++){
+    row->transformed[i] = transformed[i];
+  }
   row->wasInited = 1;
 }
 
