@@ -40,67 +40,166 @@
 typedef uint8_t bool;
 typedef uint64_t row_t;
 typedef uint32_t col_t;
+typedef uint64_t hash_t;
 typedef int32_t shift_t;
 typedef uint64_t bitarray_t;
 typedef int32_t fixed_cell_t;  // fixed point notation 0.NUM_TOT_INS
 typedef uint64_t fixed_sum_t; // fixed point notation 1.(NUM_TOT_INS+1)
+#define MAX_FIXED_SUM  (1ll << (NUM_TOT_INS+1))
+#define FIXED_SUM_NORMALIZE(x)  ((x) > MAX_FIXED_SUM ? MAX_FIXED_SUM : (x))
 
 // useful def
 #define LEAD_1(x) (63 - __builtin_clzll((x)))
 #define TAIL_1(x) LEAD_1((x)&-(x))
 
 
-//-- define a tree to store all the matrix_row_t. Use getRow(row) to get a location as if it was an array instead of a tree
+double binomial_d(int n, int k){
+  if(k > n-k) return binomial_d(n, n-k);
+
+  double ret = 1.0;
+  for(int i = n-k+1; i <= n; i++)
+    ret *= i;
+  for(int i = 2; i <= k; i++)
+    ret /= i;
+
+  return ret;
+}
+
+row_t binomial_r(int n, int k){
+  if(k > n-k) return binomial_r(n, n-k);
+
+  row_t ret = 1;
+  for(int i = n-k+1; i <= n; i++)
+    ret *= i;
+  for(int i = 2; i <= k; i++)
+    ret /= i;
+
+  return ret;
+}
 
 
-// a row of the correlation matrix
-typedef struct matrix_row{
-  bool wasInited;
-  bitarray_t plain[(NUM_COLS+63) / 64]; // the xored outputs of the function
-  fixed_cell_t transformed[NUM_NORND_COLS];  // the transformed outputs: the actual row. it doesn't save the ones with the coordinates of the randoms \neq 0 as they're never used.
-} matrix_row_t;
 
+#define PLAIN_SIZE  ((NUM_COLS+63) / 64)
 
 #define GET_PLAIN(arr, pos)  (((arr)[(pos) / 64] >> ((pos) % 64)) & 1)
 #define SET_PLAIN(arr, pos, val)  {(arr)[(pos) / 64] ^= (GET_PLAIN(arr,pos) ^ (val))  << ((pos) % 64);}
+#define SET_AS_XOR_PLAIN(to, f1, f2)  { for(col_t i = 0; i < PLAIN_SIZE; i++){ (to)[i] = (f1)[i] ^ (f2)[i];  } }
 
 
 
-// root of the tree containing the matrix
-void * matrix[64];
 
-// traverse the tree to get the row (internal)
-void * getRow_i(void** from, row_t pos, int depth){
-  if(pos == 0) return from;
+// -- hash table
 
-  shift_t tail = TAIL_1(pos); // pos=0 handled
-  if(pos >> tail == 1 || depth == MAX_COEFF){ // natural leaf || it just has no leaves
-    if(!from[tail]){
-      from[tail] = calloc(1, sizeof(matrix_row_t));
+
+
+typedef struct {
+  row_t not_index; // negated for initialization. 0 -> all 1s -> >NUM_PROBES -> invalid.
+  fixed_sum_t only_row;
+  fixed_sum_t tot_sum;
+} HT_elem_t;
+
+typedef struct {
+  HT_elem_t* table;
+  shift_t bits;
+} HT_t;
+
+hash_t get_rows_group_size(shift_t coeff){
+  hash_t ret = binomial_r(NUM_PROBES, coeff);
+  if(ret != (hash_t) binomial_d(NUM_PROBES, coeff)){
+    fprintf(stderr, "Rounding error!\n");
+    fprintf(stderr, "Can't calculate number of combinations with %d probes.", (int) coeff);
+    exit(1);
+  }
+
+  return ret;
+}
+
+HT_t new_HT(){
+  hash_t size = 0;
+  for(shift_t i = 0; i <= MAX_COEFF && i <= NUM_PROBES; i++){
+    size += get_rows_group_size(i);
+  }
+  size = size * 120 / 100;
+
+  HT_t ret;
+  ret.bits = LEAD_1(size)+1;
+  ret.table = calloc(1ll << ret.bits, sizeof(HT_elem_t));
+  return ret;
+}
+
+#define ROT(x, pos) (((x) << (pos)) | ((x) >> (-(pos) & 63)))
+#define HT_BLOCK 32
+
+hash_t ht_count_values = 0;
+inline hash_t get_hash(row_t index, shift_t bits, hash_t counter){
+//printf("index = %lx, bits = %lx, counter = %lx, empty = %ld, full = %ld", (long) index, (long) bits, (long) counter, (long) (1ll<<bits) - ht_count_values, (long) ht_count_values);
+  hash_t hash = (index * 11) ^ ROT(index, 17) ^ (ROT(index, 35) * (counter + 12));
+//printf("h = %lx", hash);
+  hash = (hash * 11) ^ ROT(hash, 17);
+//printf("h = %lx", hash);
+  hash = (hash * 11) ^ ROT(hash, 17);
+//printf("h = %lx\n", hash);
+  return (hash >> (64-bits)) ^ (hash & ((1ll << bits)-1));
+}
+
+HT_elem_t* get_value_HT(HT_t hashTable, row_t index){
+  hash_t hash;
+
+  hash_t counter = 0;
+  while(1){
+    hash  = get_hash(index, hashTable.bits, counter++);
+    for(int i = 0; i < HT_BLOCK; i++, hash=(hash+1) & ((1ll << hashTable.bits)-1) ){
+//printf("h = %lx\n", hash);
+      if(hashTable.table[hash].not_index == ~index){
+        return &hashTable.table[hash];
+      }
+      if(hashTable.table[hash].not_index == 0){
+//printf("adding index = %lx, as hash = %lx\n", (long) index, (long) hash);
+        ht_count_values++;
+        hashTable.table[hash].not_index = ~index;
+        if(~index == 0){
+          fprintf(stderr, "How can a row_t be full of 1s?\n");
+          exit(1);
+        }
+        return &hashTable.table[hash];
+      }
     }
-    return from[tail];
-  }else{ // node
-    if(!from[tail]){
-      from[tail] = calloc(LEAD_1(pos)+1, sizeof(void*));
-    }
-    return getRow_i((void**) from[tail], pos >> (tail+1), depth+1);
   }
 }
 
-// get the row of the matrix
-matrix_row_t* getRow(row_t pos){
-  pos |= 1ll << 63;
-  return getRow_i(matrix, pos, 1);
-}
 
 
-
-//-- define the function to get the correlation matrix: getInitedRow(row)[column]
+//-- calculate info on the rows
 
 
 
 // definition of the gadget, to be appended afterward.
 void gadget(bool x[NUM_TOT_INS], bool ret[NUM_TOT_OUTS]);
+
+void initCore(bitarray_t core[NUM_PROBES * PLAIN_SIZE]){
+  bool x[NUM_TOT_INS];
+  bool ret[NUM_TOT_OUTS];
+  for(col_t i = 0; i < NUM_COLS; i++){
+    for(shift_t j = 0; j < NUM_TOT_INS; j++){
+      x[j] = (i >> j) & 1;
+    }
+    gadget(x, ret);
+    for(shift_t j = 0; j < NUM_PROBES; j++){
+      SET_PLAIN(core + j * PLAIN_SIZE, i, ret[j + NUM_OUTS*D])
+    }
+  }
+}
+
+// with D=3, from  [0100] -> [000'111'000'000]. from the underlinying wire to all its shares.
+col_t int_expand_by_D(col_t val){
+  if(val == 0) return 0;
+  col_t bit = (1ll<<D)-1;
+  col_t ret = 0;
+  for(shift_t i = 0 ; i <= LEAD_1(val); i++){ // val==0 has been handled.
+    ret |= (((val >> i) & 1) * bit) << i*D;
+  }
+  return ret;
+}
 
 // Fast Walsh-Hadamard transform
 void inPlace_transform(fixed_cell_t *tr, col_t size){ // tr must have 1 for false, -1 for true
@@ -118,70 +217,140 @@ void inPlace_transform(fixed_cell_t *tr, col_t size){ // tr must have 1 for fals
   }
 }
 
-// after setting plain to its value, call this to set the rest
-void finalizze_row(matrix_row_t* row){
+fixed_sum_t get_row_half_sum(bitarray_t *row, row_t r){
   static const fixed_cell_t val[2] = {1, -1};
+
   fixed_cell_t transformed[NUM_COLS];
-  for(col_t i =0; i < NUM_COLS; i++){
-    transformed[i] = val[GET_PLAIN(row->plain, i)];
+  for(col_t i = 0; i < NUM_COLS; i++){
+    transformed[i] = val[GET_PLAIN(row, i)];
   }
   inPlace_transform(transformed, NUM_COLS);
-  for(col_t i =0; i < NUM_NORND_COLS; i++){
-    row->transformed[i] = transformed[i];
+
+  fixed_sum_t ret = 0;
+  for(col_t i = 1; i < (1ll<<NUM_INS) && ret < MAX_FIXED_SUM; i++){
+    ret += llabs(transformed[int_expand_by_D(i)]); // this has an implicit /2  due to the types.
   }
-  row->wasInited = 1;
+/*
+if(ret != 0){
+printf("half_sum of %lx is %lx\n", (long) r, (long) ret);
+for(col_t j = 0; j < NUM_NORND_COLS; j++) printf("%ld; ", (long) transformed[j]);
+printf("\n");
+}
+*/
+  return FIXED_SUM_NORMALIZE(ret);
 }
 
-// calculate the basic rows needed to set up the rest of the matrix. to be called before asking for any row
-void calculateCore(){
-  matrix_row_t* r = getRow(0);
-  for(col_t i = 0; i < NUM_COLS; i++){
-    SET_PLAIN(r->plain, i, 0)
-  }
-  finalizze_row(r);
-
-  matrix_row_t* core[NUM_TOT_OUTS];
-  for(shift_t j = 0; j < NUM_TOT_OUTS; j++){
-    core[j] = getRow(1ll << j);
-  }
-
-  bool x[NUM_TOT_INS];
-  bool ret[NUM_TOT_OUTS];
-  for(col_t i = 0; i < NUM_COLS; i++){
-    for(shift_t j = 0; j < NUM_TOT_INS; j++){
-      x[j] = (i >> j) & 1;
-    }
-    gadget(x, ret);
-    for(shift_t j = 0; j < NUM_TOT_OUTS; j++){
-      SET_PLAIN(core[j]->plain, i, ret[j])
-    }
-  }
-  for(shift_t j = 0; j < NUM_TOT_OUTS; j++){
-    finalizze_row(core[j]);
-  }
+row_t get_first_row_popk(shift_t population){ // population must be > 0
+  return (1ll << population)-1;
 }
 
-// get (and lazily initialize) the actual row of the matrix (internal)
-matrix_row_t *getInitedRow_i(row_t row){
-  matrix_row_t* r = getRow(row);
-  if(!r->wasInited){
-    row_t topmost = 1ll << LEAD_1(row); // row=0 has been calculated
-    bitarray_t *first = getRow(topmost)->plain;
-    bitarray_t *second = getInitedRow_i(row ^ topmost)->plain;
-    for(col_t j = 0; j < NUM_COLS; j++){
-      SET_PLAIN(r->plain, j, GET_PLAIN(first, j) ^ GET_PLAIN(second, j))
-    }
-    finalizze_row(r);
-  }
-  return r;
+inline row_t get_next_row_popk(shift_t population, row_t curr){
+  row_t ret = curr;
+  ret += (1ll << TAIL_1(ret));
+  ret |= (1ll << (population - __builtin_popcountll(ret)))-1;
+
+  if(ret < curr) return 0; // looped back
+  if(ret >= (1ll << NUM_PROBES)) return 0; // reached the end
+  return ret;
 }
 
-// get (and lazily initialize) the actual row of the matrix (internal)
-#define getInitedRow(row) (getInitedRow_i((row))->transformed)
+// used as an iterator to get the next sub probe combination.
+row_t getNextRow(row_t highestRow, row_t curr){ // first is 0, return 0 for end
+  if(curr == highestRow) return 0;
+  row_t lowest = 1ll << TAIL_1(curr ^ highestRow);  // sub ^ probes == 0 <-> sub == probes, which has been handled.
+  return (curr & ~(lowest-1)) | lowest;
+}
+
+fixed_sum_t calculateTotSum(fixed_sum_t only_row, HT_t ht, row_t row){
+  if(only_row == MAX_FIXED_SUM) return MAX_FIXED_SUM;
+
+  // half rows
+  row_t max_parent = 0;  // the max to detect sum >= MAX_FIXED_SUM earlier
+  fixed_sum_t max_parent_tot_sum = 0;
+  for(shift_t i = TAIL_1(row); i <= LEAD_1(row); i++){
+    row_t parent = row &~(1ll<<i);
+    if(parent == row) continue; // probe not present
+
+    HT_elem_t* it = get_value_HT(ht, parent);
+    if(it->tot_sum <= max_parent_tot_sum) continue; // not the max
+
+    max_parent_tot_sum = it->tot_sum; // set new max
+    max_parent = parent;
+    if(max_parent_tot_sum + only_row >= MAX_FIXED_SUM) return MAX_FIXED_SUM; // this by itself saturated the maximum
+  }
+  fixed_sum_t ret = max_parent_tot_sum;
+
+  // other half rows
+  row_t fixed = max_parent ^ row; // add the fixed 1 later, iterate over the combinations without it as it's easier.
+  row_t sub = 0;
+  do{
+    ret += get_value_HT(ht, fixed | sub)->only_row;
+    if(ret >= MAX_FIXED_SUM) return MAX_FIXED_SUM;
+  }while((sub = getNextRow(max_parent, sub))); // break when it loops back, 0 is false.
+//printf("row = %lx, ret = %lx\n", (long) row, (long) ret);
+  return ret;
+}
+
+
+HT_t calculateAll(){
+  bitarray_t core[NUM_PROBES * PLAIN_SIZE];
+  initCore(core);
+
+  HT_t ret = new_HT();
+  HT_elem_t* e = get_value_HT(ret, 0);
+  e->only_row = 0;
+  e->tot_sum = 0;
+  if(MAX_COEFF == 0 || NUM_PROBES == 0) return ret;
+
+  for(shift_t i = 0; i < NUM_PROBES; i++){
+    e = get_value_HT(ret, 1ll << i);
+    e->only_row = get_row_half_sum(core + i * PLAIN_SIZE, i);
+    e->tot_sum = e->only_row;
+  }
+  if(MAX_COEFF == 1 || NUM_PROBES == 1) return ret;
+
+  bitarray_t * prev_lv = core; // keep the untransformed rows to do the xor faster
+  for(shift_t coeff = 2; coeff <= MAX_COEFF && coeff <= NUM_PROBES; coeff++){
+    row_t size = get_rows_group_size(coeff);
+    bitarray_t * current_lv = malloc(size * PLAIN_SIZE * sizeof(bitarray_t)); // current untransformed rows, to be used in the next iteration TODO: last iteration could be optimized, and it's the biggest one by far.
+
+    row_t row = get_first_row_popk(coeff);         // keep track of the current position on the current_lv and of the current position on the prev_lv.
+    row_t prev_row = get_first_row_popk(coeff-1);
+    row_t pos = 0;
+    row_t prev_pos = 0;
+    do{
+      // calculate the prev_pos of  row ^ (1ll << tail) = removeTailBit(row)
+      shift_t tail = TAIL_1(row);
+      while((row ^ (1ll << tail)) != prev_row){
+//printf("row = %lx; prev_row = %lx, prev_pos=%ld\n", (long) row, (long) prev_row, (long) prev_pos);
+        prev_row = get_next_row_popk(coeff-1, prev_row);
+        prev_pos++;
+      }
+//printf("row = %lx, prev_row = %lx\n", (long) row, (long) prev_row);
+
+      // calculate the untransformed row of the correlation matrix
+      SET_AS_XOR_PLAIN(current_lv + pos * PLAIN_SIZE, prev_lv + prev_pos * PLAIN_SIZE, core + tail * PLAIN_SIZE)
+//printf("for done\n");
+
+      // calculate the element of the hash table.
+      e = get_value_HT(ret, row);
+//printf("hash table done\n");
+      e->only_row = get_row_half_sum(current_lv + pos * PLAIN_SIZE, row);
+      e->tot_sum = calculateTotSum(e->only_row, ret, row);
+      pos++;
+    }while((row = get_next_row_popk(coeff, row)));
+
+    if(coeff != 2) free(prev_lv);
+    prev_lv = current_lv;
+  }
+  free(prev_lv);
+  return ret;
+}
 
 
 
 //-- probes and rows
+
 
 
 typedef int prob_comb_t[NUM_PROBES];
@@ -196,12 +365,6 @@ row_t getHighestRow(prob_comb_t curr_comb){
   return ret;
 }
 
-// used as an iterator to get the next sub probe.
-row_t getNextRow(row_t highestRow, row_t curr){ // first is 0, return 0 for end
-  if(curr == highestRow) return 0;
-  row_t lowest = 1ll << TAIL_1(curr ^ highestRow);  // sub ^ probes == 0 <-> sub == probes, which has been handled.
-  return (curr & ~(lowest-1)) | lowest;
-}
 
 #define ITERATE_OVER_ROWS_OF_PROBE(curr_comb, iterator, code)  { \
     row_t iterator = 0; \
@@ -212,25 +375,7 @@ row_t getNextRow(row_t highestRow, row_t curr){ // first is 0, return 0 for end
   }
 
 // return the logaritm, how much it needs to be shifted
-shift_t get_row_multeplicity(prob_comb_t curr_comb, row_t row){
-  // check for bugs
-  for(shift_t i = 0; i < NUM_PROBES; i++){
-    if( ((row >> i)&1) != 0 && curr_comb[i] == 0 ){
-      fprintf(stderr, "BUG! Assert failed\n");
-      fprintf(stderr, "  curr_comb: ");
-      for(shift_t i = 0; i < NUM_PROBES; i++){
-         fprintf(stderr, "%d, ", (int) curr_comb[i]);
-      }
-      fprintf(stderr, "\n");
-      fprintf(stderr, "  row: ");
-      for(shift_t i = 0; i < NUM_PROBES; i++){
-         fprintf(stderr, "%d, ", (int) (row >> i) & 1);
-      }
-      fprintf(stderr, "\n");
-      exit(1);
-    }
-  }
-
+shift_t get_row_multeplicity(prob_comb_t curr_comb){
   // comb: 1,3,4,0,1
   // row:  0,0,0,0,0
 
@@ -291,22 +436,10 @@ bool tryIncrementProbeComb(prob_comb_t curr_comb, shift_t* curr_count){ // inite
     }while(tryIncrementProbeComb(iterator_comb, &iterator_count)); \
   }
 
-double binomial(int n, int k){
-  if(k > n-k) return binomial(n, n-k);
-
-  double ret = 1.0;
-  for(int i = n-k+1; i <= n; i++)
-    ret *= i;
-  for(int i = 2; i <= k; i++)
-    ret /= i;
-
-  return ret;
-}
-
 double get_probes_multeplicity(prob_comb_t curr_comb){
   double ret = 1.0;
   for(shift_t i = 0; i < NUM_PROBES; i++){
-    ret *= binomial(multeplicity[i], curr_comb[i]);
+    ret *= binomial_d(multeplicity[i], curr_comb[i]);
   }
   return ret;
 }
@@ -315,63 +448,33 @@ double get_probes_multeplicity(prob_comb_t curr_comb){
 
 
 
-
-// with D=3, from  [0100] -> [000'111'000'000]. from the underlinying wire to all its shares.
-col_t int_expand_by_D(col_t val){
-  if(val == 0) return 0;
-  col_t bit = (1ll<<D)-1;
-  col_t ret = 0;
-  for(shift_t i = 0 ; i <= LEAD_1(val); i++){ // val==0 has been handled.
-    ret |= (((val >> i) & 1) * bit) << i*D;
-  }
-  return ret;
-}
 
 // calculate with the 'is' formula
-fixed_sum_t rps_is(prob_comb_t probes){ // returns with fixed point notation.
-  ITERATE_OVER_ROWS_OF_PROBE(probes, row, {
-    for(col_t i = 1; i < (1ll<<NUM_INS); i++){
-      if(getInitedRow(row<<(D*NUM_OUTS))[int_expand_by_D(i)] != 0){
-        return 1ll << (NUM_TOT_INS+1);
-      }
-    }
-  })
-  return 0;
+fixed_sum_t rps_is(HT_t ht, prob_comb_t probes){ // returns with fixed point notation.
+  return get_value_HT(ht, getHighestRow(probes))->tot_sum != 0 ? MAX_FIXED_SUM : 0;
 }
 
 // calculate with the 'sum' formula
-fixed_sum_t rps_sum(prob_comb_t probes){ // returns with fixed point notation.
-  fixed_sum_t max_ret = 1ll << (NUM_TOT_INS+1);
-  fixed_sum_t ret = 0;
-  ITERATE_OVER_ROWS_OF_PROBE(probes, row, {
-    for(col_t i = 1; i < (1ll<<NUM_INS) && ret < max_ret; i++){
-      fixed_sum_t val = llabs(getInitedRow(row<<(D*NUM_OUTS))[int_expand_by_D(i)]); // this has an implicit /2  due to the types.
-      if(val == 0) continue; // nothing to add
+fixed_sum_t rps_sum(HT_t ht, prob_comb_t probes){ // returns with fixed point notation.
+  shift_t shift_by = get_row_multeplicity(probes);
+  fixed_sum_t ret = get_value_HT(ht, getHighestRow(probes))->tot_sum;
 
-      shift_t max_shift = LEAD_1(max_ret)-1 - LEAD_1(val);
-      shift_t shift_by = get_row_multeplicity(probes, row);
-      if(shift_by > max_shift){  // ensure no overflow
-        ret = max_ret;
-      }else{
-        ret += val << shift_by;
-      }
-    }
-  })
+  if(ret == 0) return 0; // to avoid bug in the next line if  MAX_FIXED_SUM >> shift_by == 0
+  if(ret >= (MAX_FIXED_SUM >> shift_by) ) return MAX_FIXED_SUM; // nearly the same as asking if  (ret << shift_by) >= MAX_FIXED_SUM
 
-  if(ret > max_ret) ret = max_ret;
-  return ret;
+  return ret << shift_by;
 }
 
 
 // calculate the coefficient of the f(p) using evalCombination to get the individual coefficient of each combination of probes.
-void min_failure_probability(double *retCoeffs, fixed_sum_t (*evalCombination)(prob_comb_t)){
+void min_failure_probability(HT_t ht, double *retCoeffs, fixed_sum_t (*evalCombination)(HT_t, prob_comb_t)){
   for(shift_t i = 0; i <= MAX_COEFF; i++){
     retCoeffs[i] = 0.0;
   }
 
   ITERATE_OVER_PROBES(probes, coeffNum, {
     double mul = get_probes_multeplicity(probes);
-    retCoeffs[coeffNum] += evalCombination(probes) / ((double) (1ll << (NUM_TOT_INS+1))) * mul;
+    retCoeffs[coeffNum] += evalCombination(ht, probes) / ((double) (1ll << (NUM_TOT_INS+1))) * mul;
   })
 }
 
@@ -380,21 +483,21 @@ void min_failure_probability(double *retCoeffs, fixed_sum_t (*evalCombination)(p
 int main(){
   printf("program started\n");
 
-  printf("calculating core...\n");
-  calculateCore();
-  printf("core calculated\n");
+  printf("calculating matrix info...\n");
+  HT_t ht = calculateAll();
+  printf("info calculated\n");
 
 
   double retCoeff[MAX_COEFF+1];
 
-  min_failure_probability(retCoeff, rps_is);
+  min_failure_probability(ht, retCoeff, rps_is);
   printf("coeffs of is: ");
   for(shift_t i = 0; i <= MAX_COEFF; i++){
     printf(" %f", retCoeff[i]);
   }
   printf("\n");
 
-  min_failure_probability(retCoeff, rps_sum);
+  min_failure_probability(ht, retCoeff, rps_sum);
   printf("coeffs of sum: ");
   for(shift_t i = 0; i <= MAX_COEFF; i++){
     printf(" %f", retCoeff[i]);
