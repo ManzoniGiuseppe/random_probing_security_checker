@@ -31,8 +31,13 @@
 #error "too many columns"
 #endif
 
+#if D*NUM_IN > 64
+#error "too many shared input bits"
+#endif
+
 #if MAX_COEFF > TOT_MUL_PROBES
-#error MAX_COEFF "can go up to" TOT_MUL_PROBES
+  #undef MAX_COEFF
+  #define MAX_COEFF TOT_MUL_PROBES
 #endif
 
 
@@ -94,6 +99,7 @@ row_t binomial_r(int n, int k){
 
 typedef struct {
   row_t not_index; // negated for initialization. 0 -> all 1s -> >NUM_PROBES -> invalid.
+  bitarray_t has_one_iron; // if a given input bit has a 1 in any sub-row.
   fixed_sum_t only_row;
   fixed_sum_t tot_sum;
 } HT_elem_t;
@@ -218,43 +224,6 @@ void inPlace_transform(fixed_cell_t *tr, col_t size){ // tr must have 1 for fals
   }
 }
 
-fixed_sum_t get_row_half_sum(bitarray_t *row, row_t r){
-  static const fixed_cell_t val[2] = {1, -1};
-
-  fixed_cell_t transformed[NUM_COLS];
-  for(col_t i = 0; i < NUM_COLS; i++){
-    transformed[i] = val[GET_PLAIN(row, i)];
-  }
-  inPlace_transform(transformed, NUM_COLS);
-
-  fixed_sum_t ret = 0;
-  for(col_t i = 1; i < (1ll<<NUM_INS) && ret < MAX_FIXED_SUM; i++){
-    ret += llabs(transformed[int_expand_by_D(i)]); // this has an implicit /2  due to the types.
-  }
-/*
-if(ret != 0){
-printf("half_sum of %lx is %lx\n", (long) r, (long) ret);
-for(col_t j = 0; j < NUM_NORND_COLS; j++) printf("%ld; ", (long) transformed[j]);
-printf("\n");
-}
-*/
-  return FIXED_SUM_NORMALIZE(ret);
-}
-
-row_t get_first_row_popk(shift_t population){ // population must be > 0
-  return (1ll << population)-1;
-}
-
-inline row_t get_next_row_popk(shift_t population, row_t curr){
-  row_t ret = curr;
-  ret += (1ll << TAIL_1(ret));
-  ret |= (1ll << (population - __builtin_popcountll(ret)))-1;
-
-  if(ret < curr) return 0; // looped back
-  if(ret >= (1ll << NUM_PROBES)) return 0; // reached the end
-  return ret;
-}
-
 // used as an iterator to get the next sub probe combination.
 row_t getNextRow(row_t highestRow, row_t curr){ // first is 0, return 0 for end
   if(curr == highestRow) return 0;
@@ -293,12 +262,13 @@ fixed_sum_t calculateTotSum(fixed_sum_t only_row, HT_t ht, row_t row){
 }
 
 int64_t getNextProbe(int64_t probe){ /// 0 is the first probe
+  if(probe+1 >= (1ll << NUM_PROBES)) return 0; // if overflows return 0 i.e. loop back.
   if(__builtin_popcountll(probe+1) <= MAX_COEFF) return probe+1;
-  if(probe == 0) return MAX_COEFF != 0 ? 1 : 0;
+  if(probe == 0) return (MAX_COEFF != 0 && NUM_PROBES != 0) ? 1 : 0;
 
   int64_t lowest = 1ll << TAIL_1(probe);  // probes == 0 has been handled.
   probe += lowest;
-  probe &= ~(1ll << NUM_PROBES); // if overflows return 0 i.e. loop back.
+  if(probe >= (1ll << NUM_PROBES)) return 0; // if overflows return 0 i.e. loop back.
   return probe;
 }
 
@@ -332,10 +302,50 @@ HT_t calculateAll(){
     }
 //printf("for done\n");
 
+    // transform
+    fixed_cell_t transformed[NUM_COLS];
+    static const fixed_cell_t val[2] = {1, -1};
+    for(col_t i = 0; i < NUM_COLS; i++){
+      transformed[i] = val[GET_PLAIN(plain, i)];
+    }
+    inPlace_transform(transformed, NUM_COLS);
+
+
     // calculate the element of the hash table.
     HT_elem_t *e = get_value_HT(ret, row);
 //printf("hash table done\n");
-    e->only_row = get_row_half_sum(plain, row);
+
+    // only_row
+    e->only_row = 0;
+    for(col_t i = 1; i < (1ll<<NUM_INS) && e->only_row < MAX_FIXED_SUM; i++){
+      e->only_row += llabs(transformed[int_expand_by_D(i)]); // this has an implicit /2  due to the types.
+    }
+    e->only_row = FIXED_SUM_NORMALIZE(e->only_row);
+
+/*
+if(ret != 0){
+printf("half_sum of %lx is %lx\n", (long) r, (long) ret);
+for(col_t j = 0; j < NUM_NORND_COLS; j++) printf("%ld; ", (long) transformed[j]);
+printf("\n");
+}
+*/
+
+    // has_one_iron
+    for(shift_t in = 0; in < NUM_INS*D; in++){
+      bool found = 0;
+      for(col_t j = 0; j < NUM_NORND_COLS && !found; j++){
+        if((j & (1ll << in)) == 0) continue; // consider only the j that contain i.
+        found = transformed[j] != 0;
+      }
+      if(found) e->has_one_iron |= 1ll << in;
+    }
+    for(shift_t i = 0; i < NUM_PROBES; i++){
+      row_t sub = row & ~(1ll << i);
+      if(sub == row) continue; // not a sub row.
+      e->has_one_iron |= get_value_HT(ret, sub)->has_one_iron;
+    }
+
+    // tot sum
     e->tot_sum = calculateTotSum(e->only_row, ret, row);
 
     // next
@@ -452,6 +462,19 @@ fixed_sum_t rps_is(HT_t ht, prob_comb_t probes){ // returns with fixed point not
   return get_value_HT(ht, getHighestRow(probes))->tot_sum != 0 ? MAX_FIXED_SUM : 0;
 }
 
+// calculate with the 'ironmask' formula
+fixed_sum_t rps_iron(HT_t ht, prob_comb_t probes){ // returns with fixed point notation.
+  bitarray_t has_one_iron = get_value_HT(ht, getHighestRow(probes))->has_one_iron;
+  for(shift_t i = 0; i < NUM_INS; i++){ // any i
+    bool failed = 0;
+    for(shift_t d = 0; d < D && !failed; d++){ // all d
+      failed = ((has_one_iron >> (i*D+d)) & 1) == 0;
+    }
+    if(!failed) return MAX_FIXED_SUM;
+  }
+  return 0;
+}
+
 // calculate with the 'sum' formula
 fixed_sum_t rps_sum(HT_t ht, prob_comb_t probes){ // returns with fixed point notation.
   shift_t shift_by = get_row_multeplicity(probes);
@@ -489,14 +512,21 @@ int main(){
   double retCoeff[MAX_COEFF+1];
 
   min_failure_probability(ht, retCoeff, rps_is);
-  printf("coeffs of is: ");
+  printf("coeffs of is:   ");
+  for(shift_t i = 0; i <= MAX_COEFF; i++){
+    printf(" %f", retCoeff[i]);
+  }
+  printf("\n");
+
+  min_failure_probability(ht, retCoeff, rps_iron);
+  printf("coeffs of iron: ");
   for(shift_t i = 0; i <= MAX_COEFF; i++){
     printf(" %f", retCoeff[i]);
   }
   printf("\n");
 
   min_failure_probability(ht, retCoeff, rps_sum);
-  printf("coeffs of sum: ");
+  printf("coeffs of sum:  ");
   for(shift_t i = 0; i <= MAX_COEFF; i++){
     printf(" %f", retCoeff[i]);
   }
