@@ -83,7 +83,7 @@ row_t binomial_r(int n, int k){
 
 #define GET_PLAIN(arr, pos)  (((arr)[(pos) / 64] >> ((pos) % 64)) & 1)
 #define SET_PLAIN(arr, pos, val)  {(arr)[(pos) / 64] ^= (GET_PLAIN(arr,pos) ^ (val))  << ((pos) % 64);}
-#define SET_AS_XOR_PLAIN(to, f1, f2)  { for(col_t i = 0; i < PLAIN_SIZE; i++){ (to)[i] = (f1)[i] ^ (f2)[i];  } }
+#define SET_AS_XOR_PLAIN(to, f1, f2)  { for(col_t set_as_xor_plain__i = 0; set_as_xor_plain__i < PLAIN_SIZE; set_as_xor_plain__i++){ (to)[set_as_xor_plain__i] = (f1)[set_as_xor_plain__i] ^ (f2)[set_as_xor_plain__i];  } }
 
 
 
@@ -150,6 +150,7 @@ HT_elem_t* get_value_HT(HT_t hashTable, row_t index){
     hash  = get_hash(index, hashTable.bits, counter++);
     for(int i = 0; i < HT_BLOCK; i++, hash=(hash+1) & ((1ll << hashTable.bits)-1) ){
 //printf("h = %lx\n", hash);
+//printf("considering index = %lx, as hash = %lx\n", (long) index, (long) hash);
       if(hashTable.table[hash].not_index == ~index){
         return &hashTable.table[hash];
       }
@@ -291,59 +292,56 @@ fixed_sum_t calculateTotSum(fixed_sum_t only_row, HT_t ht, row_t row){
   return ret;
 }
 
+int64_t getNextProbe(int64_t probe){ /// 0 is the first probe
+  if(__builtin_popcountll(probe+1) <= MAX_COEFF) return probe+1;
+  if(probe == 0) return MAX_COEFF != 0 ? 1 : 0;
+
+  int64_t lowest = 1ll << TAIL_1(probe);  // probes == 0 has been handled.
+  probe += lowest;
+  probe &= ~(1ll << NUM_PROBES); // if overflows return 0 i.e. loop back.
+  return probe;
+}
 
 HT_t calculateAll(){
   bitarray_t core[NUM_PROBES * PLAIN_SIZE];
   initCore(core);
 
   HT_t ret = new_HT();
-  HT_elem_t* e = get_value_HT(ret, 0);
-  e->only_row = 0;
-  e->tot_sum = 0;
-  if(MAX_COEFF == 0 || NUM_PROBES == 0) return ret;
 
-  for(shift_t i = 0; i < NUM_PROBES; i++){
-    e = get_value_HT(ret, 1ll << i);
-    e->only_row = get_row_half_sum(core + i * PLAIN_SIZE, i);
-    e->tot_sum = e->only_row;
-  }
-  if(MAX_COEFF == 1 || NUM_PROBES == 1) return ret;
-
-  bitarray_t * prev_lv = core; // keep the untransformed rows to do the xor faster
-  for(shift_t coeff = 2; coeff <= MAX_COEFF && coeff <= NUM_PROBES; coeff++){
-    row_t size = get_rows_group_size(coeff);
-    bitarray_t * current_lv = malloc(size * PLAIN_SIZE * sizeof(bitarray_t)); // current untransformed rows, to be used in the next iteration TODO: last iteration could be optimized, and it's the biggest one by far.
-
-    row_t row = get_first_row_popk(coeff);         // keep track of the current position on the current_lv and of the current position on the prev_lv.
-    row_t prev_row = get_first_row_popk(coeff-1);
-    row_t pos = 0;
-    row_t prev_pos = 0;
-    do{
-      // calculate the prev_pos of  row ^ (1ll << tail) = removeTailBit(row)
-      shift_t tail = TAIL_1(row);
-      while((row ^ (1ll << tail)) != prev_row){
-//printf("row = %lx; prev_row = %lx, prev_pos=%ld\n", (long) row, (long) prev_row, (long) prev_pos);
-        prev_row = get_next_row_popk(coeff-1, prev_row);
-        prev_pos++;
+  row_t row = 0;
+  row_t prev = ~row;
+  bitarray_t plain[PLAIN_SIZE] = {0};
+  do{
+//printf("row %lx\n", row);
+    //either reset or reuse last result
+    row_t xorWith;
+    if(__builtin_popcountll(row) > __builtin_popcountll(row ^ prev)){
+      xorWith = row ^ prev;
+    }else{
+      xorWith = row;
+      for(col_t i = 0; i < PLAIN_SIZE; i++){
+        plain[i] = 0;
       }
-//printf("row = %lx, prev_row = %lx\n", (long) row, (long) prev_row);
+    }
 
-      // calculate the untransformed row of the correlation matrix
-      SET_AS_XOR_PLAIN(current_lv + pos * PLAIN_SIZE, prev_lv + prev_pos * PLAIN_SIZE, core + tail * PLAIN_SIZE)
+    // get the plain result
+    while(xorWith != 0){
+      shift_t tail = TAIL_1(xorWith);
+      SET_AS_XOR_PLAIN(plain, plain, core + tail * PLAIN_SIZE)
+      xorWith ^= 1ll << tail;
+    }
 //printf("for done\n");
 
-      // calculate the element of the hash table.
-      e = get_value_HT(ret, row);
+    // calculate the element of the hash table.
+    HT_elem_t *e = get_value_HT(ret, row);
 //printf("hash table done\n");
-      e->only_row = get_row_half_sum(current_lv + pos * PLAIN_SIZE, row);
-      e->tot_sum = calculateTotSum(e->only_row, ret, row);
-      pos++;
-    }while((row = get_next_row_popk(coeff, row)));
+    e->only_row = get_row_half_sum(plain, row);
+    e->tot_sum = calculateTotSum(e->only_row, ret, row);
 
-    if(coeff != 2) free(prev_lv);
-    prev_lv = current_lv;
-  }
-  free(prev_lv);
+    // next
+    prev = row;
+  }while((row = getNextProbe(row)));
+
   return ret;
 }
 

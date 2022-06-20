@@ -21,17 +21,16 @@ gadgets/vrapsPaper_copy.sage (d=2, i=1, o=2, rnd=2, prob=4, mult_prob=12)
 
 gadgets/vrapsPaper_mul.sage (d=3, i=2, o=1, rnd=11, prob=55, mult_prob=97)
  !!!!    TODO: why 'is' != 'vraps' !!!!!!
- !!!!   Segmentation failt   !!!!!
   vraps: 0.0      0.0      0.0      1098.0      98068.0      4291446.0     2:45 min
-  is:    0.000000 0.000000 0.000000 1091.000000 95997.000000 [seg fault]   0:47 min
-  sum:   0.000000 0.000000 0.000000  300.062500 31758.375000 [seg fault]   0:47 min
+  is:    0.000000 0.000000 0.000000 1091.000000 95997.000000 4141455.0000  9:10 min
+  sum:   0.000000 0.000000 0.000000  300.062500 31758.375000 1661144.8125  9:10 min
   ironm: 0        0        [seg fault]                                     0.0 s
 
 gadgets/refresh.sage   (d=3, i=1, o=1, rnd=3, prob=9, mult_prob=15)
   vraps: 0.0      0.0      0.0      1.0      21.0       174.0              3.4 s
-  is:    0.000000 0.000000 0.000000 1.000000 21.000000 174.000000          0.6 s
+  is:    0.000000 0.000000 0.000000 1.000000 21.000000 174.000000          0.65 s
   ironm: 0        0        0        1        12         66                 0.0 s
-  sum:   0.000000 0.000000 0.000000 0.500000 10.500000 100.500000          0.6 s
+  sum:   0.000000 0.000000 0.000000 0.500000 10.500000 100.500000          0.65 s
 
 gadgets/isw_mul_generator.py 2  (d=2, i=2, o=1, rnd=1, prob=11, mult_prob=21)
   vraps: 0.0      0.0      51.0      754.0      4827.0      18875.0        3.4 s
@@ -42,6 +41,12 @@ gadgets/isw_mul_generator.py 2  (d=2, i=2, o=1, rnd=1, prob=11, mult_prob=21)
 gadgets/isw_mul_generator.py 4  (d=4, i=2, o=1, rnd=6, prob=50, mult_prob=110)
  !!!!    TODO: why 'is' != 'vraps' !!!!!!
   vraps: 0.0      0.0      0.0      0.0      36185.0      3267476.0        4:04 min
-  is:    0.000000 0.000000 0.000000 0.000000 35989.000000 3252053.000000   0:53 min
+  is:    0.000000 0.000000 0.000000 0.000000 35989.000000 3252053.000000   0:54 min
   ironm: 0        0        0        0        29258        2508844          0.0 s
-  sum:   0.000000 0.000000 0.000000 0.000000  7813.406250  956408.000000   0:53 min
+  sum:   0.000000 0.000000 0.000000 0.000000  7813.406250  956408.000000   0:54 min
+
+
+- 3.4 s is the minimum for vraps
+- 0.6 s is the minimum for main.c (due to the compilation)
+- ironmask is incomparably faster
+- the number of random inputs seems to be the main factor for main.c being slower than vraps.
