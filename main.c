@@ -331,18 +331,25 @@ printf("\n");
 */
 
     // has_one_iron
-    for(shift_t in = 0; in < NUM_INS*D; in++){
-      bool found = 0;
-      for(col_t j = 0; j < NUM_NORND_COLS && !found; j++){
-        if((j & (1ll << in)) == 0) continue; // consider only the j that contain i.
-        found = transformed[j] != 0;
+    bool found_all_d = 0;
+    for(shift_t in = 0; in < NUM_INS && !found_all_d; in++){
+      found_all_d = 1;
+      for(shift_t d = 0; d < D; d++){
+        bool found = 0;
+        for(col_t j = 0; j < NUM_NORND_COLS && !found; j++){
+          if((j & (1ll << (in*D+d))) == 0) continue; // consider only the j that contain i.
+          found = transformed[j] != 0;
+        }
+        if(found) e->has_one_iron |= 1ll << (in*D+d);
+        else found_all_d = 0;
       }
-      if(found) e->has_one_iron |= 1ll << in;
     }
-    for(shift_t i = 0; i < NUM_PROBES; i++){
-      row_t sub = row & ~(1ll << i);
-      if(sub == row) continue; // not a sub row.
-      e->has_one_iron |= get_value_HT(ret, sub)->has_one_iron;
+    if(row != 0){
+      for(shift_t i = TAIL_1(row); i <= LEAD_1(row); i++){
+        row_t sub = row & ~(1ll << i);
+        if(sub == row) continue; // not a sub row.
+        e->has_one_iron |= get_value_HT(ret, sub)->has_one_iron;
+      }
     }
 
     // tot sum
@@ -511,22 +518,22 @@ int main(){
 
   double retCoeff[MAX_COEFF+1];
 
-  min_failure_probability(ht, retCoeff, rps_is);
-  printf("coeffs of is:   ");
+  min_failure_probability(ht, retCoeff, rps_iron);
+  printf("coeffs of Msis: ");
   for(shift_t i = 0; i <= MAX_COEFF; i++){
     printf(" %f", retCoeff[i]);
   }
   printf("\n");
 
-  min_failure_probability(ht, retCoeff, rps_iron);
-  printf("coeffs of iron: ");
+  min_failure_probability(ht, retCoeff, rps_is);
+  printf("coeffs of M0:   ");
   for(shift_t i = 0; i <= MAX_COEFF; i++){
     printf(" %f", retCoeff[i]);
   }
   printf("\n");
 
   min_failure_probability(ht, retCoeff, rps_sum);
-  printf("coeffs of sum:  ");
+  printf("coeffs of Mgm:  ");
   for(shift_t i = 0; i <= MAX_COEFF; i++){
     printf(" %f", retCoeff[i]);
   }

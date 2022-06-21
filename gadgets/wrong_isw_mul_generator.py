@@ -28,14 +28,18 @@ for j in range(numShares):
     print('z',j,i,' = z',i,j,' + w',i,j, sep='')
     print('z',j,i,' = z',j,i,' + w',j,i, sep='')
 
-if numShares == 2:
-  print('c0 = w00 + z01')
-  print('c1 = w11 + z10')
-else:
-  for i in range(numShares):
-    list = [str(j) for j in range(numShares) if j != i]
-    print('d',i,' = z',i,list[0], ' + z',i,list[1], sep='')
-    for it in list[2:]:
-      print('d',i,' = d',i,' + z',i,it, sep='')
-    print('c',i,' = w',i,i,' + d',i, sep='')
+def get_coeff(i,j):
+  if i != j:
+    return 'z'+str(i)+str(j)
+  else:
+    return 'w'+str(i)+str(j)
+
+for i in range(numShares):
+  if numShares == 2:
+    print('c',i,' = ', get_coeff(i,0), ' + ', get_coeff(i,1), sep='')
+  else:
+    print('d',i,' = ', get_coeff(i,0), ' + ', get_coeff(i,1), sep='')
+    for j in range(2,numShares-1):
+      print('d',i,' = d',i,' + ', get_coeff(i,j), sep='')
+    print('c',i,' = d',i,' + ', get_coeff(i,numShares-1), sep='')
 
