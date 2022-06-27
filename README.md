@@ -1,6 +1,8 @@
 # Random Probing Security checker
 
-To get the coefficient:
+## Random Probing Security
+
+To get the coefficient, inside ./RPS/:
 
     ./exec.sh 'gadget' 'max coefficient'
 
@@ -8,9 +10,9 @@ To generate the ISW multiplications, inside ./gadgets/:
 
     ./isw_mul_generator.py 'num shares' > 'output file'
 
-To directly get the coefficient for a ISW multiplication (at least in bash):
+To directly get the coefficient for a ISW multiplication (at least in bash), inside ./RPS/:
 
-    ./exec.sh <(gadgets/isw_mul_generator.py 'num shares')  'max coefficient'
+    ./exec.sh <(../gadgets/isw_mul_generator.py 'num shares')  'max coefficient'
 
 
 Note: In the .sage files:
