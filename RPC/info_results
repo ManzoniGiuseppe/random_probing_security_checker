@@ -1,0 +1,36 @@
+
+M0 = Model 0 = theoretical acording to the definition of RPC used by vraps and ironmask.
+vraps = actual vraps
+ironmask = actual iron mask
+~M0 = mariant of M0 where instead of min f() = \max_outs f_out(p), the max is done coefficient wise (it's not possible to get a single set of coefficients for the max of polinomials). the accuracy of this should be < of M0
+~Mgm = like ~M0 is for M0, this is for Mgm, my model
+
+
+coefficients:
+
+time:
+  3.7 s is the minimum for vraps
+  1.0 s is the minimum for exec.sh (due to the compilation)
+  ironmask is incomparably faster
+  the times of ~M0, ~Mgm are the same as it's a single execution that calculates all 2, plus the M0 and Mgm of RPS for regression testing.
+
+
+coeff of:    p^0      p^1      p^2      p^3        p^4         p^5          p^6           p^7            p^8             p^9             p^10         time (s)
+
+gadgets/refresh_ring.sage   (d=3, i=1, o=1, rnd=3, prob=9, mult_prob=15)
+  vraps:     0.0      0.0      6.0      111.0       702.0      2198.0       4332.0        6028.0        6255.0        4949.0        2992.0               4.4
+  ~M0:       0.000000 0.000000 6.000000 111.000000  702.000000 2177.000000  4293.000000   5997.000000   6243.000000   4947.000000   2992.000000          1.0
+  ~Mgm:      0.000000 0.000000 4.500000 105.000000  702.000000 2177.000000  4293.000000   5997.000000   6243.000000   4947.000000   2992.000000          1.0
+  ironmask:  0        0        3         37         210         726         1705          2871          3564          3300          2304                 0.0
+
+gadgets/vrapsPaper_add_v1.sage  (d=3, i=2, o=1, rnd=6, prob=24, mult_prob=36)
+  vraps:     0.0      0.0      6.0      264.0      5661.0      76118.0      548025.0         11:31
+  ~M0:       0.000000 0.000000 6.000000 264.000000 5661.000000 76118.000000 696667.000000       18.3
+  ~Mgm:      0.000000 0.000000 6.000000 250.000000 5238.000000 71606.000000 680203.000000       18.3
+  ironmask:  0        0        6        200        3225        33516        252336               0.1
+
+gadgets/vrapsPaper_add_v2.sage (d=3, i=2, o=1, rnd=6, prob=24, mult_prob=36)
+  vraps:     0.0      0.0      6.0      256.0      5583.0      77340.0      570326.0         22:36
+  ~M0:       0.000000 0.000000 6.000000 256.000000 5583.000000 77340.000000 720305.000000       20.0
+  ~Mgm:      0.000000 0.000000 6.000000 240.000000 5056.000000 71556.000000 702693.000000       20.0
+  (ironmask) 0        0        6        200        3225        33516        252336               0.1
