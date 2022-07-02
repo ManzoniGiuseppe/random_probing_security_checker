@@ -33,6 +33,7 @@
 #define LEAD_1(x) (63 - __builtin_clzll((x)))
 #define TAIL_1(x) LEAD_1((x)&-(x))
 #define MAX(x,y)  ((x) > (y) ? (x) : (y))
+#define MIN(x,y)  ((x) < (y) ? (x) : (y))
 
 
 
@@ -126,8 +127,20 @@ static fixed_sum_t rpc_sum(probeComb_t probes, row_t output){ // returns with fi
   return ret << shift_by;
 }
 
+static double calculateF(double *coeffs, double p){
+  double ret = 0.0;
+  double pi;
+  shift_t i;
+  for(pi = 1.0, i = 0; i <= MAX_COEFF; i++, pi *= p){
+    ret += coeffs[i] * pi;
+  }
+  return MIN(1, ret);
+}
+
 // calculate the coefficient of the f(p) using evalCombination to get the individual coefficient of each combination of probes.
-static void min_f_rpc(double *retCoeffs, fixed_sum_t (*evalCombination)(probeComb_t, row_t)){
+static void min_f_rpc(double *retCoeffs, fixed_sum_t (*evalCombination)(probeComb_t, row_t), bool *ret_wasApproximated){
+  *ret_wasApproximated = 0;
+
   for(shift_t i = 0; i <= MAX_COEFF; i++)
     retCoeffs[i] = 0.0;
 
@@ -150,8 +163,43 @@ static void min_f_rpc(double *retCoeffs, fixed_sum_t (*evalCombination)(probeCom
 
     })
 
+    bool gt = 0;
+    bool lt = 0;
+    for(shift_t i = 0; i <= MAX_COEFF; i++){
+      if(coeffs[i] > retCoeffs[i]) gt = 1;
+      if(coeffs[i] < retCoeffs[i]) lt = 1;
+    }
+
+    if(!gt) continue;
+    if(gt && !lt){
+      for(shift_t i = 0; i <= MAX_COEFF; i++)
+        retCoeffs[i] = coeffs[i];
+      *ret_wasApproximated = 0;
+      continue;
+    }
+    // gt && lt
+
+    // try again more accurately
+    gt = lt = 0;
+    for(double p = 0.0; p <= 1.0; p+=FN_CMP_STEP){
+      double rcf = calculateF(retCoeffs, p);
+      double cf = calculateF(coeffs, p);
+      if(cf > rcf) gt = 1;
+      if(cf < rcf) lt = 1;
+    }
+
+    if(!gt) continue;
+    if(gt && !lt){
+      for(shift_t i = 0; i <= MAX_COEFF; i++)
+        retCoeffs[i] = coeffs[i];
+      *ret_wasApproximated = 0;
+      continue;
+    }
+    // gt && lt
     for(shift_t i = 0; i <= MAX_COEFF; i++)
       retCoeffs[i] = MAX(retCoeffs[i], coeffs[i]); // approximate maximum f by using the maximum coefficients.
+
+    *ret_wasApproximated = 1;
   }while(row_tryNextOut(& output));
 }
 
@@ -183,15 +231,23 @@ int main(){
   }
   printf("\n");
 
-  min_f_rpc(retCoeff, rpc_is);
-  printf("RPC: coeffs of ~M0:  ");
+  bool ret_wasApproximated;
+
+  min_f_rpc(retCoeff, rpc_is, & ret_wasApproximated);
+  if(ret_wasApproximated)
+    printf("RPC: coeffs of ~M0:  ");
+  else
+    printf("RPC: coeffs of M0:  ");
   for(shift_t i = 0; i <= MAX_COEFF; i++){
     printf(" %f", retCoeff[i]);
   }
   printf("\n");
 
-  min_f_rpc(retCoeff, rpc_sum);
-  printf("RPC: coeffs of ~Mgm:  ");
+  min_f_rpc(retCoeff, rpc_sum, & ret_wasApproximated);
+  if(ret_wasApproximated)
+    printf("RPC: coeffs of ~Mgm:  ");
+  else
+    printf("RPC: coeffs of Mgm:  ");
   for(shift_t i = 0; i <= MAX_COEFF; i++){
     printf(" %f", retCoeff[i]);
   }
