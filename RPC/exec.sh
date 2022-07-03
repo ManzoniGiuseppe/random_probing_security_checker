@@ -102,7 +102,7 @@ cat > $tmp_c << EOF
 int gadget_probeMulteplicity[NUM_PROBES] = ${multeplicity_array};
 
 void gadget_fn(bdd_t x[NUM_TOT_INS], bdd_t ret[NUM_TOT_OUTS]){
-$(cat $tmp $tmp_input | sed 's/\(.\) = \(.*\) \([*+]\) \(.*\)/\1 = bdd_op_\3(\2, \4)/;s/+/xor/;s/\*/anx/;;s/^/  /;s/$/;/')
+$(cat $tmp $tmp_input | sed 's/\(.\) = \(.*\) \([*+]\) \(.*\)/\1 = bdd_op_\3(\2, \4)/;s/+/xor/;s/\*/and/;;s/^/  /;s/$/;/')
 }
 EOF
 
