@@ -126,7 +126,7 @@ static assoc_t *assoc;
 
 static void __attribute__ ((constructor)) allocAssoc(){
   assoc = calloc(sizeof(assoc_t), 1ll << ROWS_USED_BITS);
-  if(assoc == NULL) FAIL("Can't allocate storage for CorrelationTable!")
+  if(assoc == NULL) FAIL("Can't allocate assoc for CorrelationTable!")
 }
 
 // must be pow2
