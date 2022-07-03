@@ -32,17 +32,11 @@ typedef uint64_t hash_t;
 // -- storage
 
 
-#define INIT_STATUS__UNUSED  0
-#define INIT_STATUS__ALLOCATED  1
-#define INIT_STATUS__ONLYROW  2
-#define INIT_STATUS__PROBE  3
-
 typedef struct {
-  int init_status;
-  row_t index;
-  fixed_sum_t onlyRow[NUM_NORND_COLS+1]; // 0~(NUM_NORND_COLS-1) rpc,  NUM_NORND_COLS rps
-  fixed_sum_t probe[NUM_NORND_COLS+1];
-  fixed_sum_t rpc_probe_min;
+  hash_t base_hash; // 0 for unused
+  fixed_cell_t transform[NUM_NORND_COLS];
+  fixed_sum_t onlyRow_rps;
+  fixed_sum_t onlyRow_rpc[NUM_NORND_COLS];
 } elem_t;
 
 static size_t storage_items;
@@ -55,44 +49,143 @@ static void __attribute__ ((constructor)) allocStorage(){
 
 #define ROT(x, pos) (((x) << (pos)) | ((x) >> (-(pos) & 63)))
 // must be pow2
-#define HT_BLOCK 32
+#define STORAGE_HT_BLOCK 32
 
-#if HT_BLOCK > 1ll << CORRELATIONTABLE_STORAGE_BITS
-  #undef HT_BLOCK
-  #define HT_BLOCK (1ll << CORRELATIONTABLE_STORAGE_BITS)
+#if STORAGE_HT_BLOCK > 1ll << CORRELATIONTABLE_STORAGE_BITS
+  #undef STORAGE_HT_BLOCK
+  #define STORAGE_HT_BLOCK (1ll << CORRELATIONTABLE_STORAGE_BITS)
 #endif
 
-static inline hash_t get_hash(row_t index, hash_t counter){
+static inline hash_t get_hash_content(fixed_cell_t transform[NUM_NORND_COLS], hash_t counter, hash_t* base_hash){
   hash_t hash = 0;
 
-  for(int i = 0; i < ROW_VALUES_SIZE; i++){
-    hash_t it = index.values[i];
-    hash ^= (it * 11) ^ ROT(it, 17) ^ (ROT(it, 35) * (counter + 12));
-    hash = (hash * 11) ^ ROT(hash, 17);
-    hash = (hash * 11) ^ ROT(hash, 17);
-  }
+  for(int i = 0; i < NUM_NORND_COLS; i++){
+    hash_t it = transform[i] + counter;
+    it = (it * 0xB0000B) ^ ROT(it, 17);
+    hash = (hash * 0xB0000B) ^ ROT(hash, 17);
+    hash ^= (it * 0xB0000B) ^ ROT(it, 17);
 
+//    hash ^= (it * 11) ^ ROT(it, 17) ^ (ROT(it, 35) * (counter + 12));
+//    hash = (hash * 11) ^ ROT(hash, 17);
+//    hash = (hash * 11) ^ ROT(hash, 17);
+  }
+  hash = (hash * 0xB0000B) ^ ROT(hash, 17);
+
+  *base_hash = hash;
   return (hash >> (64-CORRELATIONTABLE_STORAGE_BITS)) ^ (hash & ((1ll << CORRELATIONTABLE_STORAGE_BITS)-1));
 }
 
-static uint64_t hash_requests;
-static uint64_t hash_lookups;
+static uint64_t storage_hash_requests;
+static uint64_t storage_hash_lookups;
 
-static elem_t* get_row(row_t index){
-  hash_requests++;
+static elem_t* get_row_from_transform(fixed_cell_t transform[NUM_NORND_COLS], void (*init)(elem_t*)){
+  storage_hash_requests++;
   hash_t counter = 0;
   while(1){
-    hash_t hash  = get_hash(index, counter++);
-    for(int i = 0; i < HT_BLOCK; i++){
-      hash_t hash_it = (hash &~(HT_BLOCK-1)) | ((hash+i) & (HT_BLOCK-1));
+    hash_t base_hash;
+    hash_t hash = get_hash_content(transform, counter++, & base_hash);
+    if(base_hash == 0)
+      base_hash++;
+
+    for(int i = 0; i < STORAGE_HT_BLOCK; i++){
+      hash_t hash_it = (hash &~(STORAGE_HT_BLOCK-1)) | ((hash+i) & (STORAGE_HT_BLOCK-1));
       elem_t* it = &storage[ hash_it ];
-      hash_lookups++;
-      if(it->init_status == INIT_STATUS__UNUSED){
+      storage_hash_lookups++;
+      if(it->base_hash == 0){
         storage_items++;
-        it->index = index;
-        it->init_status = INIT_STATUS__ALLOCATED;
+        for(int i = 0; i < NUM_NORND_COLS; i++){
+          it->transform[i] = transform[i];
+        }
+        it->base_hash = base_hash;
+        init(it);
         return it;
       }
+
+      if(it->base_hash != base_hash) continue; // speed up
+      for(int i = 0; i < NUM_NORND_COLS; i++)
+        if(it->transform[i] != transform[i])
+          continue;
+
+      // it->transform == transform
+      return it;
+    }
+  }
+}
+
+
+
+typedef struct {
+  row_t index;
+  elem_t* row;
+  fixed_sum_t probe_rpc;
+  fixed_sum_t probe_rps;
+} assoc_t;
+
+static size_t assoc_items;
+static assoc_t *assoc;
+
+static void __attribute__ ((constructor)) allocAssoc(){
+  assoc = calloc(sizeof(assoc_t), 1ll << ROWS_USED_BITS);
+  if(assoc == NULL) FAIL("Can't allocate storage for CorrelationTable!")
+}
+
+// must be pow2
+#define ASSOC_HT_BLOCK 32
+
+#if ASSOC_HT_BLOCK > 1ll << ROWS_USED_BITS
+  #undef ASSOC_HT_BLOCK
+  #define ASSOC_HT_BLOCK (1ll << ROWS_USED_BITS)
+#endif
+
+static inline hash_t get_hash_index(row_t index, hash_t counter){
+  hash_t hash = 0;
+
+  for(int i = 0; i < ROW_VALUES_SIZE; i++){
+    hash_t it = index.values[i] + counter;
+    it = (it * 0xB0000B) ^ ROT(it, 17);
+    hash ^= (it * 0xB0000B) ^ ROT(it, 17);
+    hash = (hash * 0xB0000B) ^ ROT(hash, 17);
+  }
+
+  return (hash >> (64-ROWS_USED_BITS)) ^ (hash & ((1ll << ROWS_USED_BITS)-1));
+}
+
+static uint64_t assoc_hash_requests;
+static uint64_t assoc_hash_lookups;
+
+static assoc_t* new_row(row_t index, fixed_cell_t transform[NUM_NORND_COLS], void (*init)(elem_t*)){
+  assoc_hash_requests++;
+  hash_t counter = 0;
+  while(1){
+    hash_t hash = get_hash_index(index, counter++);
+    for(int i = 0; i < ASSOC_HT_BLOCK; i++){
+      hash_t hash_it = (hash &~(ASSOC_HT_BLOCK-1)) | ((hash+i) & (ASSOC_HT_BLOCK-1));
+      assoc_t *it = &assoc[ hash_it ];
+      assoc_hash_lookups++;
+      if(it->row == NULL){
+        assoc_items++;
+        it->index = index;
+        it->row = get_row_from_transform(transform, init);
+        it->probe_rpc = MAX_FIXED_SUM+1;
+        it->probe_rps = MAX_FIXED_SUM+1;
+        return it;
+      }
+
+      if(row_eq(it->index, index)) FAIL("get_row_new: The row is alrady in!")
+    }
+  }
+}
+
+static assoc_t* get_row(row_t index){
+  assoc_hash_requests++;
+  hash_t counter = 0;
+  while(1){
+    hash_t hash  = get_hash_index(index, counter++);
+    for(int i = 0; i < ASSOC_HT_BLOCK; i++){
+      hash_t hash_it = (hash &~(ASSOC_HT_BLOCK-1)) | ((hash+i) & (ASSOC_HT_BLOCK-1));
+      assoc_t *it = & assoc[ hash_it ];
+      assoc_hash_lookups++;
+      if(it->row == NULL) FAIL("get_row: missing!")
 
       if(row_eq(it->index, index))
         return it;
@@ -100,12 +193,17 @@ static elem_t* get_row(row_t index){
   }
 }
 
-
 double correlationTable_dbg_storageFill(void){
   return ((double) storage_items) / (1ll << CORRELATIONTABLE_STORAGE_BITS);
 }
-double correlationTable_dbg_hashConflictRate(void){
-  return ((double) hash_lookups - hash_requests) / hash_requests;
+double correlationTable_dbg_storageHashConflictRate(void){
+  return ((double) storage_hash_lookups - storage_hash_requests) / storage_hash_requests;
+}
+double correlationTable_dbg_assocFill(void){
+  return ((double) assoc_items) / (1ll << ROWS_USED_BITS);
+}
+double correlationTable_dbg_assocHashConflictRate(void){
+  return ((double) assoc_hash_lookups - assoc_hash_requests) / assoc_hash_requests;
 }
 
 
@@ -160,17 +258,13 @@ static void get_rowRpc(fixed_cell_t transform[NUM_NORND_COLS], fixed_sum_t ret[N
   }
 }
 
+static void row_elem_init(elem_t* r){
+  r->onlyRow_rps = get_rowRps(r->transform);
+  get_rowRpc(r->transform, r->onlyRow_rpc);
+}
+
 void correlationTable_row_insertTransform(row_t row, fixed_cell_t transform[NUM_NORND_COLS]){
-  elem_t* r = get_row(row);
-
-  if(r->init_status == INIT_STATUS__UNUSED) FAIL("correlationTable_row_insertTransform: must be allocated, not unused!")
-  if(r->init_status == INIT_STATUS__ONLYROW) FAIL("correlationTable_row_insertTransform: must be allocated, not onlyrow!")
-  if(r->init_status == INIT_STATUS__PROBE) FAIL("correlationTable_row_insertTransform: must be allocated, not probe!")
-  if(r->init_status != INIT_STATUS__ALLOCATED) FAIL("correlationTable_row_insertTransform: must be allocated!")
-
-  r->onlyRow[NUM_NORND_COLS] = get_rowRps(transform);
-  get_rowRpc(transform, r->onlyRow);
-  r->init_status = INIT_STATUS__ONLYROW;
+  new_row(row, transform, row_elem_init);
 }
 
 // -- correlationTable calculate probe info
@@ -196,91 +290,103 @@ static bool tryGetNextRow(row_t highestRow, row_t *curr){ // first is 0, return 
 }
 
 
-elem_t *caculate_probe_info(row_t rowParam);
 
-// row->probe_field  = \sum_{sub \subseteq row} sub->onlyRow_field.     returns if success.
-void set_single_info(elem_t * row, int index) {
-  fixed_sum_t row_ors = row->onlyRow[index];
-  fixed_sum_t *row_ps = &row->probe[index];
-  *row_ps = row_ors == MAX_FIXED_SUM ? MAX_FIXED_SUM : 0;
+// -- correlationTable_probe_getRPS
 
-  /* half rows ; get it from the existing 'probe_rps', those with the same combination except 1 bit changed 1->0. */
-  row_t max_sub = row->index;  /* the max is used and not the first one to detect sum >= MAX_FIXED_SUM earlier */
-  fixed_sum_t max_sub_rps_probe = 0;
-  for(int j = 0; j < ROW_VALUES_SIZE && *row_ps < MAX_FIXED_SUM; j++){
-    row_value_t row_it = row->index.values[j];
+
+fixed_sum_t correlationTable_probe_getRPS(row_t row_index){
+  assoc_t *row = get_row(row_index);
+  if(row->probe_rps <= MAX_FIXED_SUM) return row->probe_rps;
+
+  fixed_sum_t onlyRow = row->row->onlyRow_rps;
+  if(onlyRow == MAX_FIXED_SUM){
+    row->probe_rps = MAX_FIXED_SUM;
+    return MAX_FIXED_SUM;
+  }
+
+  /* check if any of the direct sub-probes has reached the max, if so then this is too */
+  for(int j = 0; j < ROW_VALUES_SIZE; j++){
+    row_value_t row_it = row_index.values[j];
     if(row_it == 0) continue;
 
-    for(shift_t i = TAIL_1(row_it); i <= LEAD_1(row_it) && *row_ps < MAX_FIXED_SUM; i++){
+    for(shift_t i = TAIL_1(row_it); i <= LEAD_1(row_it); i++){
       row_value_t sub_it = row_it &~ (1ll << i);
       if(sub_it == row_it) continue; /* it's not a sub-probe */
-
-      row_t sub = row->index;
+      row_t sub = row_index;
       sub.values[j] = sub_it;
-      elem_t* it = caculate_probe_info(sub);
-      fixed_sum_t it_ps = it->probe[index];
-      if(it_ps <= max_sub_rps_probe) continue; /* not the max */
 
-      max_sub_rps_probe = it_ps; /* set new max */
-      max_sub = sub;
-      if(it_ps + row_ors >= MAX_FIXED_SUM){  /* this by itself saturated the maximum */
-         *row_ps = MAX_FIXED_SUM;
+      if(correlationTable_probe_getRPS(sub) + onlyRow >= MAX_FIXED_SUM){
+        row->probe_rps = MAX_FIXED_SUM;
+        return MAX_FIXED_SUM;
       }
     }
   }
-  *row_ps = FIXED_SUM_NORMALIZE(*row_ps + max_sub_rps_probe);
 
-  /* other half rows ; get them one by one */
-  row_t fixed = row_xor(max_sub, row->index); /* add the fixed 1 later, iterate over the combinations without it as it's easier. */
+  /* calculate them by summing the rows */
+  row->probe_rps = 0;
   row_t sub = row_first();
-  if (*row_ps < MAX_FIXED_SUM) do{
-    row_t actual = row_or(sub, fixed);
-    if(!row_eq(actual, row->index)){
-      elem_t *it = caculate_probe_info(actual);
-      *row_ps += it->onlyRow[index];    /*max_sub = row->index ^ fixed = row->index &~ fixed  */
-    }else{
-      *row_ps += row_ors;
-    }
-  }while(*row_ps < MAX_FIXED_SUM && tryGetNextRow(max_sub, & sub)); /* break when it loops back, 0 is false. */
-  *row_ps = FIXED_SUM_NORMALIZE(*row_ps);
+  do{
+    row->probe_rps += get_row(sub)->row->onlyRow_rps;
+  }while(row->probe_rps < MAX_FIXED_SUM && tryGetNextRow(row_index, & sub)); /* break when it loops back, 0 is false. */
+  row->probe_rps = FIXED_SUM_NORMALIZE(row->probe_rps);
+  return row->probe_rps;
 }
 
 
-elem_t *caculate_probe_info(row_t rowParam){
-//printf("row: %llx", (int64_t) rowParam.values[0]);
-  elem_t *row = get_row(rowParam);
+// -- correlationTable_probe_getRPC
 
-  if(row->init_status == INIT_STATUS__PROBE) return row;
-  if(row->init_status != INIT_STATUS__ONLYROW) FAIL("caculate_probe_info: row must be inited!")
 
-//printf("2\n");
-
-  set_single_info(row, NUM_NORND_COLS);
-
-//printf("3\n");
-
+fixed_sum_t rpc_row_min(fixed_sum_t* row){
   fixed_sum_t min = MAX_FIXED_SUM;
-  for(int i = 0; i < NUM_NORND_COLS && min > 0; i++){
-    if(maxShares(i) > T) continue;
-    set_single_info(row, i);
-    min = MIN(min, row->probe[i]);
+  for(int i = 0; i < NUM_NORND_COLS && min != 0; i++)
+    if(maxShares(i) <= T && min > row[i])
+      min = row[i];
+  return min;
+}
+
+
+fixed_sum_t correlationTable_probe_getRPC(row_t row_index){
+  assoc_t *row = get_row(row_index);
+  if(row->probe_rpc <= MAX_FIXED_SUM) return row->probe_rpc;
+
+  fixed_sum_t* onlyRow = row->row->onlyRow_rpc;
+  fixed_sum_t onlyRow_min = rpc_row_min(onlyRow);
+
+  if(onlyRow_min == MAX_FIXED_SUM){
+    row->probe_rpc = MAX_FIXED_SUM;
+    return MAX_FIXED_SUM;
   }
-//printf("4\n");
-  row->rpc_probe_min = min;
 
-  row->init_status = INIT_STATUS__PROBE;
-  return row;
-}
+  /* check if any of the direct sub-probes has reached the max, if so then this is too */
+  for(int j = 0; j < ROW_VALUES_SIZE; j++){
+    row_value_t row_it = row_index.values[j];
+    if(row_it == 0) continue;
+
+    for(shift_t i = TAIL_1(row_it); i <= LEAD_1(row_it); i++){
+      row_value_t sub_it = row_it &~ (1ll << i);
+      if(sub_it == row_it) continue; /* it's not a sub-probe */
+      row_t sub = row_index;
+      sub.values[j] = sub_it;
+
+      if(correlationTable_probe_getRPC(sub) + onlyRow_min >= MAX_FIXED_SUM){
+        row->probe_rpc = MAX_FIXED_SUM;
+        return MAX_FIXED_SUM;
+      }
+    }
+  }
 
 
-// -- correlationTable_probe_getRP*
+  /* calculate them by summing the rows */
+  fixed_sum_t probe[NUM_NORND_COLS] = {0};
+  row_t sub = row_first();
+  do{
+    fixed_sum_t *it = get_row(sub)->row->onlyRow_rpc;
+    for(int i = 0; i < NUM_NORND_COLS; i++)
+      probe[i] = FIXED_SUM_NORMALIZE(probe[i] + it[i]);
 
+    row->probe_rpc = rpc_row_min(probe);
+  }while(row->probe_rpc < MAX_FIXED_SUM && tryGetNextRow(row_index, & sub)); /* break when it loops back, 0 is false. */
 
-fixed_sum_t correlationTable_probe_getRPS(row_t row){
-  return caculate_probe_info(row)->probe[NUM_NORND_COLS];
-}
-
-fixed_sum_t correlationTable_probe_getRPC(row_t row){
-  return caculate_probe_info(row)->rpc_probe_min;
+  return row->probe_rpc;
 }
 

@@ -14,7 +14,10 @@ fixed_sum_t correlationTable_probe_getRPS(row_t row);
 fixed_sum_t correlationTable_probe_getRPC(row_t row);
 
 double correlationTable_dbg_storageFill(void);
-double correlationTable_dbg_hashConflictRate(void);
+double correlationTable_dbg_storageHashConflictRate(void);
+double correlationTable_dbg_assocFill(void);
+double correlationTable_dbg_assocHashConflictRate(void);
+
 
 
 

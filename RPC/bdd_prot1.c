@@ -7,11 +7,11 @@
 // INFO: only for small gadgets, inefficient plain storage
 
 
-#define STORAGE_MAX ((1<<17)-1)
+#define STORAGE_MAX ((1<<15)-1)
 #define FAIL(...)  { fprintf(stderr, __VA_ARGS__); exit(1); }
 
 static int storage_size;
-static bool storage[1<<17][1ll << NUM_TOT_INS];
+static bool storage[STORAGE_MAX + 1][1ll << NUM_TOT_INS];
 
 static void storage_init(void){
   static bool inited = 0;
@@ -30,7 +30,7 @@ static void storage_init(void){
 }
 
 double bdd_dbg_storageFill(void){
-  return ((double) storage_size) / (1ll << 17);
+  return ((double) storage_size) / (STORAGE_MAX + 1);
 }
 double bdd_dbg_hashConflictRate(void){
   return 0.0;

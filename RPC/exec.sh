@@ -93,8 +93,8 @@ multeplicity_array="$(cat $tmp_input | ./get_probes_multipicity.py $[numUndOuts 
 
 tot_mul_probes=$(echo "${multeplicity_array}" | tr '{},' '  \n'| awk '{s+=$1} END {print s}')
 num_nornd_cols=$[ 1 << ( numUndIns * d ) ]
-correlationtable_storage_bits=$(./getNumRowsUsed.py $numProb $2 $numUndOuts $d $3)
-gcc_flags_macro="-DNUM_INS=${numUndIns} -DNUM_OUTS=${numUndOuts} -DD=${d} -DNUM_RANDOMS=${numRnd} -DNUM_PROBES=${numProb} -DT=${3} -DMAX_COEFF=${2} -DCORRELATIONTABLE_STORAGE_BITS=${correlationtable_storage_bits} -DTOT_MUL_PROBES=${tot_mul_probes} -DBDD_STORAGE_BITS=24 -DNUM_TOT_INS=${numIns} -DNUM_TOT_OUTS=${numOuts} -DNUM_NORND_COLS=${num_nornd_cols} -DFN_CMP_STEP=0.0001"
+rows_used_bits=$(./getNumRowsUsed.py $numProb $2 $numUndOuts $d $3)
+gcc_flags_macro="-DNUM_INS=${numUndIns} -DNUM_OUTS=${numUndOuts} -DD=${d} -DNUM_RANDOMS=${numRnd} -DNUM_PROBES=${numProb} -DT=${3} -DMAX_COEFF=${2} -DCORRELATIONTABLE_STORAGE_BITS=18 -DROWS_USED_BITS=${rows_used_bits} -DTOT_MUL_PROBES=${tot_mul_probes} -DBDD_STORAGE_BITS=24 -DNUM_TOT_INS=${numIns} -DNUM_TOT_OUTS=${numOuts} -DNUM_NORND_COLS=${num_nornd_cols} -DFN_CMP_STEP=0.0001"
 
 cat > $tmp_c << EOF
 #include "$(pwd)/gadget.h"

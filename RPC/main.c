@@ -155,12 +155,13 @@ static void min_f_rpc(double *retCoeffs, fixed_sum_t (*evalCombination)(probeCom
 //  printf("%d, ", probes[i]);
 //printf("} row=%lx, sum=%d", (long) probeComb_getHighestRow_noOut(probes).values[0], coeffNum);
 
-      double mul = probeComb_getProbesMulteplicity(probes);
-//printf(", mul=%f", mul);
       fixed_sum_t r = evalCombination(probes, output);
+      if(r != 0){
+        double mul = probeComb_getProbesMulteplicity(probes);
+//printf(", mul=%f", mul);
 //printf(", r=%lld\n", (long long) r);
-      coeffs[coeffNum] += r / ((double) (1ll << (NUM_TOT_INS+1))) * mul;
-
+        coeffs[coeffNum] += r / ((double) (1ll << (NUM_TOT_INS+1))) * mul;
+      }
     })
 
     bool gt = 0;
@@ -255,8 +256,10 @@ int main(){
 
   printf("BDD, used=%f%%\n", bdd_dbg_storageFill() * 100);
   printf("BDD, hashConflict=%f%%\n",  bdd_dbg_hashConflictRate() * 100);
-  printf("CorrelationTable, used=%f%%\n",  correlationTable_dbg_storageFill() * 100);
-  printf("CorrelationTable, hashConflict=%f%%\n",  correlationTable_dbg_hashConflictRate() * 100);
+  printf("CorrelationTable, storage: used=%f%%\n",  correlationTable_dbg_storageFill() * 100);
+  printf("CorrelationTable, storage: hashConflict=%f%%\n",  correlationTable_dbg_storageHashConflictRate() * 100);
+  printf("CorrelationTable, assoc: used=%f%%\n",  correlationTable_dbg_assocFill() * 100);
+  printf("CorrelationTable, assoc: hashConflict=%f%%\n",  correlationTable_dbg_assocHashConflictRate() * 100);
 
 
   return 0;
