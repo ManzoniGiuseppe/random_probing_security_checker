@@ -124,6 +124,31 @@ double bdd_dbg_hashConflictRate(void){
 }
 
 
+// -- bdd_dbg_print
+
+static void bdd_dbg_print__i(bdd_t val, int padding){
+  if(!bdd_is_node(val)){
+    for(int i = 0; i < padding; i++) printf(" ");
+    printf(val == BDD_TRUE? "TRUE\n" : "FALSE\n");
+    return;
+  }
+
+  for(int i = 0; i < padding; i++) printf(" ");
+  printf("%s{ %lld:\n", bdd_is_negated(val) ? "!" : "", bdd_get_input(val));
+
+  bdd_node_t a = bdd_get_node(val);
+  bdd_dbg_print__i(a.v[0], padding+2);
+  bdd_dbg_print__i(a.v[1], padding+2);
+
+  for(int i = 0; i < padding; i++) printf(" ");
+  printf("}\n");
+}
+
+void bdd_dbg_print(bdd_t val){
+  bdd_dbg_print__i(val, 0);
+}
+
+
 // -- bdd_val_single
 
 
@@ -147,7 +172,7 @@ bdd_t bdd_op_and(bdd_t val0, bdd_t val1){
   bdd_node_t a[2] = { bdd_get_node(val0), bdd_get_node(val1) };
   shift_t i[2] = { bdd_get_input(val0), bdd_get_input(val1) };
 
-  int min = i[0] < i[1] ? 0 : 1;  // parameter with the minimal input, minimal -> first.
+  int min = i[0] <= i[1] ? 0 : 1;  // parameter with the minimal input, minimal -> first.
   int max = 1-min; // parameter with the other input.
 
   if(bdd_is_negated(val[min])){
@@ -216,34 +241,18 @@ bdd_t bdd_op_xor(bdd_t val0, bdd_t val1){
 // -- bdd_op_getTransformWithoutRnd
 
 
-static shift_t bdd_get_input_all(bdd_t val){
-  if(!bdd_is_node(val)) return NUM_TOT_INS;
-  else return bdd_get_input(val);
-}
-
 static fixed_cell_t bdd_op_getSumRNDs__sum(bdd_t val){ // do the sum recursively
   if(bdd_is_negated(val)) return -bdd_op_getSumRNDs__sum(bdd_op_neg(val));
-  if(!bdd_is_node(val)) return val == BDD_FALSE ? 1ll : -1ll;
+  if(!bdd_is_node(val)) return -1ll << NUM_RANDOMS;
 
   bdd_node_t a = bdd_get_node(val);
-  shift_t i = bdd_get_input(val);
-
-  shift_t i0 = bdd_get_input_all(a.v[0]);
-  fixed_cell_t sub0 = bdd_op_getSumRNDs__sum(a.v[0]);
-  sub0 <<= i-i0-1;
-
-  shift_t i1 = bdd_get_input_all(a.v[1]);
-  fixed_cell_t sub1 = bdd_op_getSumRNDs__sum(a.v[1]);
-  sub1 <<= i-i1-1;
-
-  return sub0 + sub1;
+  return (bdd_op_getSumRNDs__sum(a.v[0]) + bdd_op_getSumRNDs__sum(a.v[1]))/2;
 }
 
 static void bdd_op_getSumRNDs__i(bdd_t val, shift_t ins_missing, bool is_pos, fixed_cell_t *ret){ // recursively travel the BDD until you get to the randoms
   if(ins_missing == 0){
     if(!is_pos) val = bdd_op_neg(val);
-    shift_t i = bdd_get_input_all(val);
-    *ret = bdd_op_getSumRNDs__sum(val) << (i-NUM_INS*D);
+    *ret = bdd_op_getSumRNDs__sum(val);
     return;
   }
 
