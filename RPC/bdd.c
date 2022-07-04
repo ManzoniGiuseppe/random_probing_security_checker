@@ -148,7 +148,6 @@ void bdd_dbg_print(bdd_t val){
   bdd_dbg_print__i(val, 0);
 }
 
-
 // -- bdd_val_single
 
 
@@ -157,9 +156,103 @@ bdd_t bdd_val_single(shift_t inputBit){
 }
 
 
+// -- cache
+
+#define CACHE_OPTYPE__UNUSED  0
+#define CACHE_OPTYPE__XOR  1
+#define CACHE_OPTYPE__AND  2
+#define CACHE_OPTYPE__SUM  4
+
+static inline hash_t cache__h(uint64_t opType, bdd_t sub0, bdd_t sub1){
+  hash_t hash0 = (sub0 * 11) ^ ROT(sub0, 17) ^ (ROT(sub0, 35) * 12);
+  hash_t hash1 = (sub1 * 13) ^ ROT(sub1, 23) ^ (ROT(sub1, 39) * 13);
+
+  hash0 = (hash0 * 11) ^ ROT(hash0, 17) ^ opType;
+  hash1 = (hash1 * 13) ^ ROT(hash1, 23);
+  hash0 = (hash0 * 11) ^ ROT(hash0, 17);
+  hash1 = (hash1 * 13) ^ ROT(hash1, 23);
+
+  hash0 = (hash0 * 11) ^ ROT(hash1, 17);
+  hash1 = (hash1 * 13) ^ ROT(hash0, 23);
+  hash0 = (hash0 * 11) ^ ROT(hash1, 17);
+  hash1 = (hash1 * 13) ^ ROT(hash0, 23);
+
+  hash_t h0 = (hash0 ^ hash1) >> (64-BDD_CACHE_BITS);
+  hash_t h1 = (hash0 ^ hash1) & ((1ll << BDD_CACHE_BITS)-1);
+  return (h0 ^ h1) & ~(BDD_CACHE_WAYS-1);
+}
+
+typedef struct{ uint64_t opType; bdd_t sub[2]; uint64_t value; } cache_elem_t;
+
+static cache_elem_t cache[1ll << BDD_CACHE_BITS];
+static uint64_t cache_items;
+
+static inline bool cache_contains__index(uint64_t opType, bdd_t sub0, bdd_t sub1, int *ret_index){
+  hash_t hash = cache__h(opType, sub0, sub1);
+  for(int i = 0; i < BDD_CACHE_WAYS; i++){ // associative cache
+    hash_t hash_it = hash | i;
+    cache_elem_t* it = & cache[hash_it];
+    if(it->opType == CACHE_OPTYPE__UNUSED){
+      *ret_index = i;
+      return 0;
+    }
+
+    if(it->opType == opType && it->sub[0] == sub0 && it->sub[1] == sub1){
+      *ret_index = i;
+      return 1;
+    }
+  }
+  *ret_index = BDD_CACHE_WAYS;
+  return 0;
+}
+
+
+static inline bool cache_contains(uint64_t opType, bdd_t sub0, bdd_t sub1){
+  int ignore;
+  return cache_contains__index(opType, sub0, sub1, &ignore);
+}
+
+static uint64_t cache_gos_movements;
+static uint64_t cache_gos_requests;
+static inline uint64_t cache_get_or_set(uint64_t opType, bdd_t sub0, bdd_t sub1, uint64_t value_if_missing){
+  cache_gos_requests++;
+
+  hash_t hash = cache__h(opType, sub0, sub1);
+
+  int i;
+  cache_elem_t to_add;
+  if(cache_contains__index(opType, sub0, sub1, & i)) //get index
+    to_add = cache[hash | i];
+  else{
+    cache_items++;
+    to_add = (cache_elem_t){ opType, {sub0, sub1},  value_if_missing};
+
+    // if full, remove the least accessed one.
+    if(i == BDD_CACHE_WAYS) i--;
+  }
+
+  // move to create a slot for the last accessed one
+  cache_gos_movements += i;
+  for(;i > 0; i--)
+    cache[hash | i] = cache[hash | (i-1)];
+  cache[hash] = to_add;
+
+  return to_add.value;
+}
+
+double bdd_dbg_cacheTurnover(void){
+  return ((double) cache_items) / (1ll << BDD_CACHE_BITS);
+}
+
+double bdd_dbg_cacheMovementRate(void){
+  return ((double) cache_gos_movements) / cache_gos_requests / (BDD_CACHE_WAYS-1);
+}
+
+
 // -- bdd_op_and
 
-bdd_t bdd_op_and(bdd_t val0, bdd_t val1){
+
+static bdd_t bdd_op_and__uncached(bdd_t val0, bdd_t val1){
   bdd_t val[2] = { val0, val1 };
 
   for(int i = 0; i < 2; i++){
@@ -196,9 +289,17 @@ bdd_t bdd_op_and(bdd_t val0, bdd_t val1){
   return bdd_new_node(sub[0], sub[1], i[min]);
 }
 
+bdd_t bdd_op_and(bdd_t val0, bdd_t val1){
+  uint64_t value = 0;
+  if(!cache_contains(CACHE_OPTYPE__AND, val0, val1))
+    value = bdd_op_and__uncached(val0, val1);
+  return cache_get_or_set(CACHE_OPTYPE__AND, val0, val1, value);
+}
+
+
 // -- bdd_op_xor
 
-bdd_t bdd_op_xor(bdd_t val0, bdd_t val1){
+static bdd_t bdd_op_xor__uncached(bdd_t val0, bdd_t val1){
   bdd_t val[2] = { val0, val1 };
 
   // handle constants
@@ -237,6 +338,13 @@ bdd_t bdd_op_xor(bdd_t val0, bdd_t val1){
   return bdd_new_node(sub[0], sub[1], i[min]);
 }
 
+bdd_t bdd_op_xor(bdd_t val0, bdd_t val1){
+  uint64_t value = 0;
+  if(!cache_contains(CACHE_OPTYPE__XOR, val0, val1))
+    value = bdd_op_xor__uncached(val0, val1);
+  return cache_get_or_set(CACHE_OPTYPE__XOR, val0, val1, value);
+}
+
 
 // -- bdd_op_getTransformWithoutRnd
 
@@ -245,9 +353,14 @@ static fixed_cell_t bdd_op_getSumRNDs__sum(bdd_t val){ // do the sum recursively
   if(bdd_is_negated(val)) return -bdd_op_getSumRNDs__sum(bdd_op_neg(val));
   if(!bdd_is_node(val)) return -1ll << NUM_RANDOMS;
 
-  bdd_node_t a = bdd_get_node(val);
-  return (bdd_op_getSumRNDs__sum(a.v[0]) + bdd_op_getSumRNDs__sum(a.v[1]))/2;
+  uint64_t value = 0;
+  if(!cache_contains(CACHE_OPTYPE__SUM, val, val)){
+    bdd_node_t a = bdd_get_node(val);
+    value = (bdd_op_getSumRNDs__sum(a.v[0]) + bdd_op_getSumRNDs__sum(a.v[1]))/2;
+  }
+  return cache_get_or_set(CACHE_OPTYPE__SUM, val, val, value);
 }
+
 
 static void bdd_op_getSumRNDs__i(bdd_t val, shift_t ins_missing, bool is_pos, fixed_cell_t *ret){ // recursively travel the BDD until you get to the randoms
   if(ins_missing == 0){

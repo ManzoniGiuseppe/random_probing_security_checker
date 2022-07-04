@@ -23,6 +23,8 @@ void bdd_get_transformWithoutRnd(bdd_t val, fixed_cell_t ret[NUM_NORND_COLS]);
 double bdd_dbg_storageFill(void);
 double bdd_dbg_hashConflictRate(void);
 
+double bdd_dbg_cacheTurnover(void);
+double bdd_dbg_cacheMovementRate(void);
 
 
 #endif // _BDD_H_

@@ -254,8 +254,10 @@ int main(){
   }
   printf("\n");
 
-  printf("BDD, used=%f%%\n", bdd_dbg_storageFill() * 100);
-  printf("BDD, hashConflict=%f%%\n",  bdd_dbg_hashConflictRate() * 100);
+  printf("BDD, storage: used=%f%%\n", bdd_dbg_storageFill() * 100);
+  printf("BDD, storage: hashConflict=%f%%\n",  bdd_dbg_hashConflictRate() * 100);
+  printf("BDD, cache: turnover=%f%%\n", bdd_dbg_cacheTurnover() * 100);
+  printf("BDD, cache: movement=%f%%\n",  bdd_dbg_cacheMovementRate() * 100);
   printf("CorrelationTable, storage: used=%f%%\n",  correlationTable_dbg_storageFill() * 100);
   printf("CorrelationTable, storage: hashConflict=%f%%\n",  correlationTable_dbg_storageHashConflictRate() * 100);
   printf("CorrelationTable, assoc: used=%f%%\n",  correlationTable_dbg_assocFill() * 100);
@@ -267,7 +269,4 @@ int main(){
 
 
 // TODO: check limits due to types.
-// TODO: improve bdd complexities with caches.
-
-// TODO: fix multiple outputs, bugs everywhere
-// TODO: speed up
+// TODO: speed up correlationTable and decrease its memory usage.

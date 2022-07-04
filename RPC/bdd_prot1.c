@@ -45,6 +45,12 @@ double bdd_dbg_storageFill(void){
 double bdd_dbg_hashConflictRate(void){
   return 0.0;
 }
+double bdd_dbg_cacheTurnover(void){
+  return 0.0;
+}
+double bdd_dbg_cacheMovementRate(void){
+  return 0.0;
+}
 
 
 
