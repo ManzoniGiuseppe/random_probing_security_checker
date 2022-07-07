@@ -154,7 +154,7 @@ static int maxShares(col_t value){
 static fixed_sum_t get_rowRps(fixed_cell_t transform[NUM_NORND_COLS]){
   fixed_sum_t ret = 0;
   for(int i = 1; i < (1ll<<NUM_INS) && ret < MAX_FIXED_SUM; i++){
-    ret += transform[intExpandByD(i)];
+    ret += llabs(transform[intExpandByD(i)]);
   }
   return FIXED_SUM_NORMALIZE(ret);
 }
