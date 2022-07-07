@@ -217,26 +217,29 @@ static col_t intExpandByD(col_t val){
   col_t bit = (1ll<<D)-1;
   col_t ret = 0;
   for(shift_t i = 0 ; i <= LEAD_1(val); i++){ // val==0 has been handled.
-    ret |= (((val >> i) & 1) * bit) << i*D;
+    ret |= (((val >> i) & 1) * bit) << (i*D);
   }
   return ret;
 }
 
-static int maxShares(col_t value){
+static int maxShares__i(col_t value, int num_wires){
   int ret = 0;
   col_t mask = (1ll << D)-1;
-  for(int i = 0; i < NUM_INS; i++){
+  for(int i = 0; i < num_wires; i++){
     int v = __builtin_popcountll(value & (mask << (i*D)));
     ret = v > ret ? v : ret;
   }
   return ret;
 }
 
+static int maxShares_in(col_t value){ return maxShares__i(value, NUM_INS); }
+//static int maxShares_out(col_t value){ return maxShares__i(value, NUM_OUTS); }
+
 // ret = min(1, \sum_{i \subseteq [I^{U^g}] : i \neq \emptyset } |W_{row, iD + [D]}|)
 static fixed_sum_t get_rowRps(fixed_cell_t transform[NUM_NORND_COLS]){
   fixed_sum_t ret = 0;
   for(int i = 1; i < (1ll<<NUM_INS) && ret < MAX_FIXED_SUM; i++){
-    ret += transform[intExpandByD(i)];
+    ret += llabs(transform[intExpandByD(i)]);
   }
   return FIXED_SUM_NORMALIZE(ret);
 }
@@ -244,7 +247,7 @@ static fixed_sum_t get_rowRps(fixed_cell_t transform[NUM_NORND_COLS]){
 // for I \subseteq [I^g] : maxShares(I) \leq t,  ret_I = min(1, \sum{i \subseteq [I^g] : i \backslash I \neq \emptyset} |W_{row, i}|)
 static void get_rowRpc(fixed_cell_t transform[NUM_NORND_COLS], fixed_sum_t ret[NUM_NORND_COLS]){
   for(int ii = 0; ii < NUM_NORND_COLS; ii++){
-    if(maxShares(ii) > T){
+    if(maxShares_in(ii) > T){
        ret[ii] = MAX_FIXED_SUM;
        continue;
     }
@@ -339,7 +342,7 @@ fixed_sum_t correlationTable_probe_getRPS(row_t row_index){
 fixed_sum_t rpc_row_min(fixed_sum_t* row){
   fixed_sum_t min = MAX_FIXED_SUM;
   for(int i = 0; i < NUM_NORND_COLS && min != 0; i++)
-    if(maxShares(i) <= T && min > row[i])
+    if(maxShares_in(i) <= T && min > row[i])
       min = row[i];
   return min;
 }

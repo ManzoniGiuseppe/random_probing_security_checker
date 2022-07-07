@@ -8,7 +8,7 @@ Mgm = my model
 
 
 coefficients:
-  TODO: why is the p^6 of vraps < M0? ; p^5 too for gadgets/add_test_2.sage
+  TODO: BUG: why is the p^6 of vraps < M0? ; p^5 too for gadgets/add_test_2.sage
 
 time:
   3.7 s is the minimum for vraps
@@ -72,9 +72,7 @@ gadgets/vrapsPaper_copy.sage (d=3, i=1, o=2, rnd=6, prob=15, mult_prob=33)
   ironmask:  0        0        27         729         9522         80154        488730        2300166         8694873        27121633        71174697             0.0
 
 gadgets/vrapsPaper_mul.sage (d=3, i=2, o=1, rnd=11, prob=55, mult_prob=97)
-  vraps:     
-  M0:        
-  Mgm:       
-  ironmask:  
-
-TODO: discrepancy in the mul, the RPS is not consistent with the one of the old tool.
+  vraps:     0.0      0.0      10.0      2679.0      82964.0           5:54
+  M0:        0.000000 0.000000  6.000000 1953.000000 154973.000000       24.8
+  Mgm:       0.000000 0.000000  6.000000  982.312500  74597.500000       24.8
+  ironmask:   [seg fault]                                                 0.0
