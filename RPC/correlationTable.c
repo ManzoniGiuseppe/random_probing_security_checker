@@ -37,6 +37,7 @@ typedef struct {
   fixed_cell_t transform[NUM_NORND_COLS];
   fixed_sum_t onlyRow_rps;
   fixed_sum_t onlyRow_rpc[NUM_NORND_COLS];
+  bool onlyRow_rpc_is[NUM_NORND_COLS];
 } elem_t;
 
 static size_t storage_items;
@@ -117,6 +118,7 @@ static elem_t* get_row_from_transform(fixed_cell_t transform[NUM_NORND_COLS], vo
 typedef struct {
   row_t index;
   elem_t* row;
+  bool probe_rpc_is;
   fixed_sum_t probe_rpc;
   fixed_sum_t probe_rps;
 } assoc_t;
@@ -166,6 +168,7 @@ static assoc_t* new_row(row_t index, fixed_cell_t transform[NUM_NORND_COLS], voi
         assoc_items++;
         it->index = index;
         it->row = get_row_from_transform(transform, init);
+        it->probe_rpc_is = 2;
         it->probe_rpc = MAX_FIXED_SUM+1;
         it->probe_rps = MAX_FIXED_SUM+1;
         return it;
@@ -175,6 +178,8 @@ static assoc_t* new_row(row_t index, fixed_cell_t transform[NUM_NORND_COLS], voi
     }
   }
 }
+
+// -----
 
 static assoc_t* get_row(row_t index){
   assoc_hash_requests++;
@@ -244,6 +249,21 @@ static fixed_sum_t get_rowRps(fixed_cell_t transform[NUM_NORND_COLS]){
   return FIXED_SUM_NORMALIZE(ret);
 }
 
+// for I \subseteq [I^g] : maxShares(I) \leq t,  ret_I = is(\exist{i \subseteq [I^g] : i \backslash I \neq \emptyset} W_{row, i} \neq 0)
+static void get_rowRpc_is(fixed_cell_t transform[NUM_NORND_COLS], bool ret[NUM_NORND_COLS]){
+  for(int ii = 0; ii < NUM_NORND_COLS; ii++){
+    if(maxShares_in(ii) > T){
+       ret[ii] = 1;
+       continue;
+    }
+    ret[ii] = 0;
+    for(int i = 0; i < NUM_NORND_COLS && !ret[ii]; i++){
+      if((i &~ ii) != 0 && transform[i] != 0)
+        ret[ii] = 1;
+    }
+  }
+}
+
 // for I \subseteq [I^g] : maxShares(I) \leq t,  ret_I = min(1, \sum{i \subseteq [I^g] : i \backslash I \neq \emptyset} |W_{row, i}|)
 static void get_rowRpc(fixed_cell_t transform[NUM_NORND_COLS], fixed_sum_t ret[NUM_NORND_COLS]){
   for(int ii = 0; ii < NUM_NORND_COLS; ii++){
@@ -264,6 +284,7 @@ static void get_rowRpc(fixed_cell_t transform[NUM_NORND_COLS], fixed_sum_t ret[N
 static void row_elem_init(elem_t* r){
   r->onlyRow_rps = get_rowRps(r->transform);
   get_rowRpc(r->transform, r->onlyRow_rpc);
+  get_rowRpc_is(r->transform, r->onlyRow_rpc_is);
 }
 
 void correlationTable_row_insertTransform(row_t row, fixed_cell_t transform[NUM_NORND_COLS]){
@@ -281,7 +302,7 @@ static bool tryGetNextRow(row_t highestRow, row_t *curr){ // first is 0, return 
     row_value_t curr_zeros = highestRow.values[i] ^ curr->values[i];  // curr_zeros has a 1 where curr has a meaningful 0
     if(curr_zeros == 0){
       curr->values[i] = 0;
-      continue;
+      continue; // carry
     }
 
     row_value_t lowest_0 = 1ll << TAIL_1(curr_zeros); // lowest meningful 0 of curr
@@ -299,7 +320,7 @@ static bool tryGetNextRow(row_t highestRow, row_t *curr){ // first is 0, return 
 
 fixed_sum_t correlationTable_probe_getRPS(row_t row_index){
   assoc_t *row = get_row(row_index);
-  if(row->probe_rps <= MAX_FIXED_SUM) return row->probe_rps;
+  if(row->probe_rps <= MAX_FIXED_SUM) return row->probe_rps; // if already calculated
 
   fixed_sum_t onlyRow = row->row->onlyRow_rps;
   if(onlyRow == MAX_FIXED_SUM){
@@ -339,19 +360,20 @@ fixed_sum_t correlationTable_probe_getRPS(row_t row_index){
 // -- correlationTable_probe_getRPC
 
 
-fixed_sum_t rpc_row_min(fixed_sum_t* row){
+static fixed_sum_t rpc_row_min(fixed_sum_t* row){
   fixed_sum_t min = MAX_FIXED_SUM;
   for(int i = 0; i < NUM_NORND_COLS && min != 0; i++)
-    if(maxShares_in(i) <= T && min > row[i])
-      min = row[i];
+    if(maxShares_in(i) <= T)
+      min = MIN(min, row[i]);
   return min;
 }
 
 
 fixed_sum_t correlationTable_probe_getRPC(row_t row_index){
   assoc_t *row = get_row(row_index);
-  if(row->probe_rpc <= MAX_FIXED_SUM) return row->probe_rpc;
+  if(row->probe_rpc <= MAX_FIXED_SUM) return row->probe_rpc; // if already calculated
 
+//#if 1==0
   fixed_sum_t* onlyRow = row->row->onlyRow_rpc;
   fixed_sum_t onlyRow_min = rpc_row_min(onlyRow);
 
@@ -359,6 +381,7 @@ fixed_sum_t correlationTable_probe_getRPC(row_t row_index){
     row->probe_rpc = MAX_FIXED_SUM;
     return MAX_FIXED_SUM;
   }
+
 
   /* check if any of the direct sub-probes has reached the max, if so then this is too */
   for(int j = 0; j < ROW_VALUES_SIZE; j++){
@@ -377,7 +400,7 @@ fixed_sum_t correlationTable_probe_getRPC(row_t row_index){
       }
     }
   }
-
+//#endif
 
   /* calculate them by summing the rows */
   fixed_sum_t probe[NUM_NORND_COLS] = {0};
@@ -385,7 +408,8 @@ fixed_sum_t correlationTable_probe_getRPC(row_t row_index){
   do{
     fixed_sum_t *it = get_row(sub)->row->onlyRow_rpc;
     for(int i = 0; i < NUM_NORND_COLS; i++)
-      probe[i] = FIXED_SUM_NORMALIZE(probe[i] + it[i]);
+      if(maxShares_in(i) <= T)
+        probe[i] = FIXED_SUM_NORMALIZE(probe[i] + it[i]);
 
     row->probe_rpc = rpc_row_min(probe);
   }while(row->probe_rpc < MAX_FIXED_SUM && tryGetNextRow(row_index, & sub)); /* break when it loops back, 0 is false. */
@@ -393,3 +417,26 @@ fixed_sum_t correlationTable_probe_getRPC(row_t row_index){
   return row->probe_rpc;
 }
 
+
+// -- correlationTable_probe_getRPC_is
+
+
+bool correlationTable_probe_getRPC_is(row_t row_index){
+  assoc_t *row = get_row(row_index);
+  if(row->probe_rpc_is != 2) return row->probe_rpc_is; // if already calculated
+
+  /* calculate them by checking all the rows */
+  for(int i = 0; i < NUM_NORND_COLS; i++){
+    if(maxShares_in(i) > T) continue;
+
+
+    row_t sub = row_first();
+    bool it = 0;
+    do{
+      it = get_row(sub)->row->onlyRow_rpc_is[i];
+    }while(!it && tryGetNextRow(row_index, & sub)); /* break when it loops back, 0 is false. */  // is an exists, so terminate when it finds anything at 1.
+
+    if(!it) return 0; // all needs to be 1. if any is not, the result is not.
+  }
+  return 1;
+}

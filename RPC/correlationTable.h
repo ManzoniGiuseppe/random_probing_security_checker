@@ -12,6 +12,7 @@ void correlationTable_row_insertTransform(row_t row, fixed_cell_t transform[NUM_
 
 fixed_sum_t correlationTable_probe_getRPS(row_t row);
 fixed_sum_t correlationTable_probe_getRPC(row_t row);
+bool correlationTable_probe_getRPC_is(row_t row);
 
 double correlationTable_dbg_storageFill(void);
 double correlationTable_dbg_storageHashConflictRate(void);

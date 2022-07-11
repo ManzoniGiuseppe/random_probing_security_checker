@@ -105,7 +105,7 @@ static void min_f_rps(double *retCoeffs, fixed_sum_t (*evalCombination)(probeCom
 // calculate with the 'is' formula
 static fixed_sum_t rpc_is(probeComb_t probes, row_t output){ // returns with fixed point notation.
   row_t highest_row = probeComb_getHighestRow(probes, output);
-  return correlationTable_probe_getRPC(highest_row) != 0 ? MAX_FIXED_SUM : 0;
+  return correlationTable_probe_getRPC_is(highest_row) ? MAX_FIXED_SUM : 0;
 }
 
 // calculate with the 'sum' formula
@@ -121,7 +121,7 @@ static fixed_sum_t rpc_sum(probeComb_t probes, row_t output){ // returns with fi
 //printf("} ret=%ld\n", (long) ret);
 //}
 
-  if(ret == 0) return 0; // to avoid bug in the next line if  MAX_FIXED_SUM >> shift_by == 0
+  if(ret == 0) return 0; // to avoid a bug in the next line if  MAX_FIXED_SUM >> shift_by == 0
   if(ret >= (MAX_FIXED_SUM >> shift_by) ) return MAX_FIXED_SUM; // nearly the same as asking if  (ret << shift_by) >= MAX_FIXED_SUM
 
   return ret << shift_by;
@@ -134,7 +134,7 @@ static double calculateF(double *coeffs, double p){
   for(pi = 1.0, i = 0; i <= MAX_COEFF; i++, pi *= p){
     ret += coeffs[i] * pi;
   }
-  return MIN(1, ret);
+  return MIN(1.0, ret); // f is a probability, so it's in [0,1]
 }
 
 // calculate the coefficient of the f(p) using evalCombination to get the individual coefficient of each combination of probes.
@@ -146,7 +146,7 @@ static void min_f_rpc(double *retCoeffs, fixed_sum_t (*evalCombination)(probeCom
 
   row_t output = row_first();
   do{
-    if(row_maxShares(output) < T) continue; // the max will be in the ones with most outputs
+    if(row_maxShares(output) != T) continue; // the max will be in the ones with most outputs
     double coeffs[MAX_COEFF+1] = {0.0};
 
     ITERATE_OVER_PROBES(probes, coeffNum, {
@@ -180,7 +180,7 @@ static void min_f_rpc(double *retCoeffs, fixed_sum_t (*evalCombination)(probeCom
     }
     // gt && lt
 
-    // try again more accurately
+    // check again by sempling the functions, to see if all the coeff are expressed
     gt = lt = 0;
     for(double p = 0.0; p <= 1.0; p+=FN_CMP_STEP){
       double rcf = calculateF(retCoeffs, p);
