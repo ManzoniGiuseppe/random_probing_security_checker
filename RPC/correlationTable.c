@@ -291,29 +291,6 @@ void correlationTable_row_insertTransform(row_t row, fixed_cell_t transform[NUM_
   new_row(row, transform, row_elem_init);
 }
 
-// -- correlationTable calculate probe info
-
-
-// used as an iterator to get the next sub probe combination.
-static bool tryGetNextRow(row_t highestRow, row_t *curr){ // first is 0, return 0 for end
-  if(row_eq(*curr, highestRow)) return 0;
-
-  for(int i = 0; i < ROW_VALUES_SIZE; i++){
-    row_value_t curr_zeros = highestRow.values[i] ^ curr->values[i];  // curr_zeros has a 1 where curr has a meaningful 0
-    if(curr_zeros == 0){
-      curr->values[i] = 0;
-      continue; // carry
-    }
-
-    row_value_t lowest_0 = 1ll << TAIL_1(curr_zeros); // lowest meningful 0 of curr
-    curr->values[i] &= ~(lowest_0-1); // remove anything below the lowest 0
-    curr->values[i] |= lowest_0; // change the lowest 0 to 1.
-    break;
-  }
-  return 1;
-}
-
-
 
 // -- correlationTable_probe_getRPS
 
@@ -351,7 +328,7 @@ fixed_sum_t correlationTable_probe_getRPS(row_t row_index){
   row_t sub = row_first();
   do{
     row->probe_rps += get_row(sub)->row->onlyRow_rps;
-  }while(row->probe_rps < MAX_FIXED_SUM && tryGetNextRow(row_index, & sub)); /* break when it loops back, 0 is false. */
+  }while(row->probe_rps < MAX_FIXED_SUM && row_tryGetNext(row_index, & sub)); /* break when it loops back, 0 is false. */
   row->probe_rps = FIXED_SUM_NORMALIZE(row->probe_rps);
   return row->probe_rps;
 }
@@ -412,7 +389,7 @@ fixed_sum_t correlationTable_probe_getRPC(row_t row_index){
         probe[i] = FIXED_SUM_NORMALIZE(probe[i] + it[i]);
 
     row->probe_rpc = rpc_row_min(probe);
-  }while(row->probe_rpc < MAX_FIXED_SUM && tryGetNextRow(row_index, & sub)); /* break when it loops back, 0 is false. */
+  }while(row->probe_rpc < MAX_FIXED_SUM && row_tryGetNext(row_index, & sub)); /* break when it loops back, 0 is false. */
 
   return row->probe_rpc;
 }
@@ -434,7 +411,7 @@ bool correlationTable_probe_getRPC_is(row_t row_index){
     bool it = 0;
     do{
       it = get_row(sub)->row->onlyRow_rpc_is[i];
-    }while(!it && tryGetNextRow(row_index, & sub)); /* break when it loops back, 0 is false. */  // is an exists, so terminate when it finds anything at 1.
+    }while(!it && row_tryGetNext(row_index, & sub)); /* break when it loops back, 0 is false. */  // is an exists, so terminate when it finds anything at 1.
 
     if(!it) return 0; // all needs to be 1. if any is not, the result is not.
   }

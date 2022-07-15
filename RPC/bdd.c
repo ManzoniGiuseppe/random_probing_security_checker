@@ -356,7 +356,7 @@ static fixed_cell_t bdd_op_getSumRNDs__sum(bdd_t val){ // do the sum recursively
   uint64_t value = 0;
   if(!cache_contains(CACHE_OPTYPE__SUM, val, val)){
     bdd_node_t a = bdd_get_node(val);
-    value = (bdd_op_getSumRNDs__sum(a.v[0]) + bdd_op_getSumRNDs__sum(a.v[1]))/2;
+    value = (bdd_op_getSumRNDs__sum(a.v[0]) + bdd_op_getSumRNDs__sum(a.v[1]))/2;  // /2 as each covers half the column space
   }
   return cache_get_or_set(CACHE_OPTYPE__SUM, val, val, value);
 }

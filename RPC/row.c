@@ -77,9 +77,7 @@ row_t row_not(row_t r){
 static inline shift_t row_getPop(row_t r){
   shift_t ret = 0;
   for(int i = 0; i < ROW_VALUES_SIZE; i++){
-    if(r.values[i] != 0){
-      ret += __builtin_popcountll(r.values[i]);
-    }
+    ret += __builtin_popcountll(r.values[i]);
   }
   return ret;
 }
@@ -104,11 +102,10 @@ static bool row_tryNextOut__i(row_t *curr, shift_t o){
 
   if(__builtin_popcountll(outs+one) <= T){ // if incrementing leads to a valid result, just increment it
     curr->values[0] += one;
-    return 1;
+  }else{
+    row_value_t v = (1ll << TAIL_1(outs));
+    curr->values[0] += v;
   }
-
-  row_value_t v = (1ll << TAIL_1(outs));
-  curr->values[0] += v;
   return 1;
 }
 
@@ -140,3 +137,24 @@ bool row_tryNextProbeAndOut(row_t *curr){
 
   return 1;
 }
+
+
+// used as an iterator to get the next sub probe combination.
+bool row_tryGetNext(row_t highestRow, row_t *curr){ // first is 0, return 0 for end
+  if(row_eq(*curr, highestRow)) return 0;
+
+  for(int i = 0; i < ROW_VALUES_SIZE; i++){
+    row_value_t curr_zeros = highestRow.values[i] ^ curr->values[i];  // curr_zeros has a 1 where curr has a meaningful 0
+    if(curr_zeros == 0){
+      curr->values[i] = 0;
+      continue; // carry
+    }
+
+    row_value_t lowest_0 = 1ll << TAIL_1(curr_zeros); // lowest meningful 0 of curr
+    curr->values[i] &= ~(lowest_0-1); // remove anything below the lowest 0
+    curr->values[i] |= lowest_0; // change the lowest 0 to 1.
+    break;
+  }
+  return 1;
+}
+

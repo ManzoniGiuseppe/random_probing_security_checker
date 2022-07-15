@@ -54,7 +54,7 @@ static void calculateAll(){
 
       while(xorWith != 0){
         shift_t tail = TAIL_1(xorWith);
-        row_fn = bdd_op_xor(row_fn, core[tail]);
+        row_fn = bdd_op_xor(row_fn, core[tail + i * 64]);
         xorWith ^= 1ll << tail;
       }
     }

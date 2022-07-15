@@ -23,6 +23,7 @@ row_t row_not(row_t r);
 row_t row_first();
 bool row_tryNextOut(row_t *curr);
 bool row_tryNextProbeAndOut(row_t *curr);
+bool row_tryGetNext(row_t highestRow, row_t *curr);
 
 
 #endif // _ROW_H_
