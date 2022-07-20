@@ -82,7 +82,10 @@ static inline hash_t bdd_new_node__h(bdd_t sub0, bdd_t sub1, hash_t counter){
   hash0 = (hash0 * 11) ^ ROT(hash1, 17);
   hash1 = (hash1 * 13) ^ ROT(hash0, 23);
 
-  return ((hash0 ^ hash1) >> (64-BDD_STORAGE_BITS)) ^ ((hash0 ^ hash1) & ((1ll << BDD_STORAGE_BITS)-1));
+  hash_t r = 0;
+  for(int i = 0; i < 64 ; i+=BDD_STORAGE_BITS)
+    r ^= ((hash0 ^ hash1) >> i) & ((1ll << BDD_STORAGE_BITS) -1);
+  return r;
 }
 
 

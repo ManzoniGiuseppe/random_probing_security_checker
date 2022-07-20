@@ -133,7 +133,7 @@ bool row_tryNextProbeAndOut(row_t *curr){
   *curr = row_add(*curr, 1ll << TAIL_1(curr->values[i]), i);
 
   for(i = ROW_VALUES_SIZE-1; i >= 0 && curr->values[i] == 0; i--); // skip highest 0s
-  if( i * 64 + TAIL_1(curr->values[i])  >= NUM_TOT_OUTS) return 0; // if overflows
+  if( i * 64 + LEAD_1(curr->values[i])  >= NUM_TOT_OUTS) return 0; // if overflows
 
   return 1;
 }
