@@ -50,22 +50,12 @@ static bool probeData_anyNot0(uint8_t* probeData, uint8_t *rowData, row_t row){
   }
 
   /* check if any of the direct sub-probes has the 1, if so then this is too */
-  for(int j = 0; j < ROW_VALUES_SIZE; j++){
-    row_value_t row_it = row.values[j];
-    if(row_it == 0) continue;
-
-    for(shift_t i = TAIL_1(row_it); i <= LEAD_1(row_it); i++){
-      row_value_t sub_it = row_it &~ (1ll << i);
-      if(sub_it == row_it) continue; /* it's not a sub-probe */
-      row_t sub = row;
-      sub.values[j] = sub_it;
-
-      if(probeData_anyNot0(probeData, rowData, sub)){
-        *it = ANY_NOT_0;
-        return 1;
-      }
+  ITERATE_OVER_DIRECT_SUB_ROWS(row, sub, {
+    if(probeData_anyNot0(probeData, rowData, sub)){
+      *it = ANY_NOT_0;
+      return 1;
     }
-  }
+  })
 
   *it = ALL_0;
   return 0;
@@ -74,10 +64,10 @@ static bool probeData_anyNot0(uint8_t* probeData, uint8_t *rowData, row_t row){
 
 coeff_t calc_rpsIs(void){
   // to store if the wanted row as any != 0 in the appropriate columns.
-  uint8_t* rowData = mem_calloc(sizeof(uint8_t), 1ll << ROWTRANSFORM_RESERVATION_BITS, "rowData for calc_rpsIs");
+  uint8_t* rowData = mem_calloc(sizeof(uint8_t), 1ll << ROWTRANSFORM_TRANSFORM_BITS, "rowData for calc_rpsIs");
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
-  uint8_t* probeData = mem_calloc(sizeof(uint8_t), 1ll << ROWTRANSFORM_ASSOC_BITS, "probeData for calc_rpsIs");
+  uint8_t* probeData = mem_calloc(sizeof(uint8_t), 1ll << ROWTRANSFORM_ROW_BITS, "probeData for calc_rpsIs");
 
   coeff_t ret = coeff_zero();
 

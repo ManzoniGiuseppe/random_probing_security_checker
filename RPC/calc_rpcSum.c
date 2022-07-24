@@ -8,19 +8,27 @@
 #include "rowTransform.h"
 
 
-typedef uint64_t fixed_sum_t; // fixed point notation 2.(NUM_TOT_INS+1)
+#if NUM_TOT_INS+1+2 <= 16
+  typedef uint16_t fixed_sum_t; // fixed point notation 2.(NUM_TOT_INS+1)
+#elif NUM_TOT_INS+1+2 <= 32
+  typedef uint32_t fixed_sum_t; // fixed point notation 2.(NUM_TOT_INS+1)
+#else
+  typedef uint64_t fixed_sum_t; // fixed point notation 2.(NUM_TOT_INS+1)
+#endif
+
 #define MAX_FIXED_SUM  (1ll << (NUM_TOT_INS+1))
 #define UNINIT_SUM (MAX_FIXED_SUM+1)
 #define FIXED_SUM_NORMALIZE(x)  ((x) > MAX_FIXED_SUM ? MAX_FIXED_SUM : (x))
 // NOTE: assigning from fixed_cell_t to fixed_sum_t implies a /2
 
 
-static inline fixed_sum_t* data_get(fixed_sum_t *data, hash_t row, col_t ii, shift_t bits){
+
+static inline fixed_sum_t* data_get(fixed_sum_t *data, hash_s_t row, col_t ii, shift_t bits){
   return & data[row + ii * (1ll << bits)];
 }
 
 static fixed_sum_t rowData_sumAbs(fixed_sum_t *rowData, row_t row, col_t ii){
-  fixed_sum_t *it = data_get(rowData, rowTransform_transform_hash(row), ii, ROWTRANSFORM_RESERVATION_BITS);
+  fixed_sum_t *it = data_get(rowData, rowTransform_transform_hash(row), ii, ROWTRANSFORM_TRANSFORM_BITS);
   if(*it != UNINIT_SUM){
     return *it; // inited
   }
@@ -40,34 +48,25 @@ static fixed_sum_t rowData_sumAbs(fixed_sum_t *rowData, row_t row, col_t ii){
 
 // second sum (without multeplicity)
 static fixed_sum_t probeData_sumAbs(fixed_sum_t *probeData, fixed_sum_t *rowData, row_t row, col_t ii){
-  fixed_sum_t *it = data_get(probeData, rowTransform_row_hash(row), ii, ROWTRANSFORM_ASSOC_BITS);
+  fixed_sum_t *it = data_get(probeData, rowTransform_row_hash(row), ii, ROWTRANSFORM_ROW_BITS);
   if(*it != UNINIT_SUM){
     return *it; // inited
   }
 
   fixed_sum_t onlyRow = rowData_sumAbs(rowData, row, ii);
-  if(onlyRow == MAX_FIXED_SUM){
-    *it = MAX_FIXED_SUM;
+  if(onlyRow >= MAX_FIXED_SUM){
+    *it = MAX_FIXED_SUM; // this can be done as curr_min depneds entirely on the row's content.
     return MAX_FIXED_SUM;
   }
 
-  /* check if any of the direct sub-probes has reached the max, if so then this is too */
-  for(int j = 0; j < ROW_VALUES_SIZE; j++){
-    row_value_t row_it = row.values[j];
-    if(row_it == 0) continue;
-
-    for(shift_t i = TAIL_1(row_it); i <= LEAD_1(row_it); i++){
-      row_value_t sub_it = row_it &~ (1ll << i);
-      if(sub_it == row_it) continue; // it's not a sub-probe
-      row_t sub = row;
-      sub.values[j] = sub_it;
-
-      if(probeData_sumAbs(probeData, rowData, sub, ii) + onlyRow >= MAX_FIXED_SUM){
-        *it = MAX_FIXED_SUM;
-        return MAX_FIXED_SUM;
-      }
+  /* the value of this probe is higher than the one of its sub probes */
+  ITERATE_OVER_DIRECT_SUB_ROWS(row, sub, {
+    fixed_sum_t sub_val = probeData_sumAbs(probeData, rowData, sub, ii);
+    if(sub_val + onlyRow >= MAX_FIXED_SUM){
+      *it = MAX_FIXED_SUM;
+      return MAX_FIXED_SUM;
     }
-  }
+  })
 
   /* calculate them by summing the rows */
   *it = 0;
@@ -112,18 +111,19 @@ static fixed_sum_t probeData_min(fixed_sum_t *probeData, fixed_sum_t *rowData, p
 
 coeff_t calc_rpcSum(void){
   // to store if the wanted row as any != 0 in the appropriate columns.
-  fixed_sum_t* rowData = mem_calloc(sizeof(fixed_sum_t), (1ll << ROWTRANSFORM_RESERVATION_BITS) * NUM_NORND_COLS, "rowData for calc_rpcSum");
-  for(hash_t i = 0; i < 1ll << ROWTRANSFORM_RESERVATION_BITS; i++)
+  fixed_sum_t* rowData = mem_calloc(sizeof(fixed_sum_t), (1ll << ROWTRANSFORM_TRANSFORM_BITS) * NUM_NORND_COLS, "rowData for calc_rpcSum");
+  for(hash_s_t i = 0; i < 1ll << ROWTRANSFORM_TRANSFORM_BITS; i++)
     for(col_t ii = 0; ii < NUM_NORND_COLS; ii++)
       if(maxShares_in(ii) <= T)
-        *data_get(rowData, i, ii, ROWTRANSFORM_RESERVATION_BITS) = UNINIT_SUM;
+        *data_get(rowData, i, ii, ROWTRANSFORM_TRANSFORM_BITS) = UNINIT_SUM;
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
-  fixed_sum_t* probeData = mem_calloc(sizeof(fixed_sum_t), (1ll << ROWTRANSFORM_ASSOC_BITS) * NUM_NORND_COLS, "probeData for calc_rpcSum");
-  for(hash_t i = 0; i < 1ll << ROWTRANSFORM_ASSOC_BITS; i++)
+  // it contains a lower bound that it high enough for its probe.
+  fixed_sum_t* probeData = mem_calloc(sizeof(fixed_sum_t), (1ll << ROWTRANSFORM_ROW_BITS) * NUM_NORND_COLS, "probeData for calc_rpcSum");
+  for(hash_s_t i = 0; i < 1ll << ROWTRANSFORM_ROW_BITS; i++)
     for(col_t ii = 0; ii < NUM_NORND_COLS; ii++)
       if(maxShares_in(ii) <= T)
-        *data_get(probeData, i, ii, ROWTRANSFORM_ASSOC_BITS) = UNINIT_SUM;
+        *data_get(probeData, i, ii, ROWTRANSFORM_ROW_BITS) = UNINIT_SUM;
 
   coeff_t ret = coeff_zero();
   row_t output = row_first();

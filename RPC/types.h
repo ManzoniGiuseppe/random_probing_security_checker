@@ -4,9 +4,12 @@
 #include <stdint.h>
 
 
+// TODO: ensure that sizes are always enough
+
 typedef uint8_t bool;
 typedef uint32_t col_t;
-typedef uint64_t hash_t;
+typedef uint64_t hash_l_t;
+typedef uint32_t hash_s_t;
 typedef int32_t shift_t;
 typedef int32_t fixed_cell_t;  // fixed point notation 1.NUM_TOT_INS  // cell of the transform TODO: rename
 
