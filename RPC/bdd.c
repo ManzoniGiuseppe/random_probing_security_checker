@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdint.h>
-#include <stdlib.h>
 
 
 #include "bdd.h"
+#include "mem.h"
 
 
 #ifndef NUM_TOT_INS__LOG2
@@ -40,10 +40,10 @@
 
 
 
-bdd_t bdd_op_not(bdd_t val){
+bdd_t bdd_op_not(void* storage, bdd_t val){
   return bdd_op_neg(val);
 }
-bdd_t bdd_val_const(bool val){
+bdd_t bdd_val_const(void* storage, bool val){
   return val ? BDD_TRUE : BDD_FALSE;
 }
 
@@ -52,12 +52,25 @@ bdd_t bdd_val_const(bool val){
 // -- storage
 
 typedef struct{ bdd_t v[2]; } bdd_node_t;
-static size_t stored_items;
-static bdd_node_t *storage;
+typedef struct{ uint64_t opType; bdd_t sub[2]; uint64_t value; } cache_elem_t;
 
-static void __attribute__ ((constructor)) allocStorage(){
-  storage = calloc(sizeof(bdd_node_t), 1ll << BDD_STORAGE_BITS);
-  if(storage == NULL) FAIL("Can't allocate the storage for BDDs!")
+typedef struct {
+  uint64_t hash_lookups;
+  uint64_t hash_requests;
+  size_t storage_items;
+  uint64_t cache_items;
+  uint64_t cache_gos_movements;
+  uint64_t cache_gos_requests;
+  bdd_node_t storage[1ll << BDD_STORAGE_BITS];
+  cache_elem_t cache[1ll << BDD_CACHE_BITS];
+} bdd_storage_t;
+
+void* bdd_storage_alloc(){
+  return mem_calloc(sizeof(bdd_storage_t), 1, "the storage for BDDs!");
+}
+
+void bdd_storage_free(void *storage){
+  mem_free(storage);
 }
 
 
@@ -89,21 +102,19 @@ static inline hash_t bdd_new_node__h(bdd_t sub0, bdd_t sub1, hash_t counter){
 }
 
 
-static uint64_t hash_lookups;
-static uint64_t hash_requests;
-static inline bdd_t bdd_new_node(bdd_t sub0, bdd_t sub1, shift_t input){   // add GC for when nearly empty.
+static inline bdd_t bdd_new_node(bdd_storage_t *s, bdd_t sub0, bdd_t sub1, shift_t input){   // add GC for when nearly empty.
   if(sub0 == sub1) return sub0; // simplify
-  if(bdd_is_negated(sub0)) return bdd_op_neg(bdd_new_node(bdd_op_neg(sub0), bdd_op_neg(sub1), input)); // ensure it's unique: have the sub0 always positive
+  if(bdd_is_negated(sub0)) return bdd_op_neg(bdd_new_node(s, bdd_op_neg(sub0), bdd_op_neg(sub1), input)); // ensure it's unique: have the sub0 always positive
 
-  hash_requests++;
+  s->hash_requests++;
   for(hash_t counter = 0; 1; counter++){
     hash_t hash  = bdd_new_node__h(sub0, sub1, counter);
     for(int i = 0; i < HT_BLOCK; i++){ // locality: search within the block
       hash_t hash_it = (hash & ~(HT_BLOCK-1)) | ((hash+i) & (HT_BLOCK-1));
-      bdd_node_t* it = & storage[hash_it];
-      hash_lookups++;
+      bdd_node_t* it = & s->storage[hash_it];
+      s->hash_lookups++;
       if(it->v[0] == it->v[1]){ // a real node's children can't be the same or it'd be simplified -> must be an unused location
-        stored_items++;
+        s->storage_items++;
         it->v[0] = sub0;
         it->v[1] = sub1;
         return hash_it | BDD_FLAG__NODE | bdd_place_input(input);
@@ -116,20 +127,22 @@ static inline bdd_t bdd_new_node(bdd_t sub0, bdd_t sub1, shift_t input){   // ad
 }
 
 #define BDD_NODE__ADDR_MASK ((((uint64_t) 1) << (64 - BDD_FLAGS - NUM_TOT_INS__LOG2))-1)
-#define bdd_get_node(x)  (storage[(x) & BDD_NODE__ADDR_MASK])
+#define bdd_get_node(s, x)  ((s)->storage[(x) & BDD_NODE__ADDR_MASK])
 
-double bdd_dbg_storageFill(void){
-  return ((double) stored_items) / (1ll << BDD_STORAGE_BITS);
+double bdd_dbg_storageFill(void* storage){
+  bdd_storage_t *s = storage;
+  return ((double) s->storage_items) / (1ll << BDD_STORAGE_BITS);
 }
 
-double bdd_dbg_hashConflictRate(void){
-  return ((double) hash_lookups - hash_requests) / hash_requests;
+double bdd_dbg_hashConflictRate(void* storage){
+  bdd_storage_t *s = storage;
+  return ((double) s->hash_lookups - s->hash_requests) / s->hash_requests;
 }
 
 
 // -- bdd_dbg_print
 
-static void bdd_dbg_print__i(bdd_t val, int padding){
+static void bdd_dbg_print__i(bdd_storage_t* s, bdd_t val, int padding){
   if(!bdd_is_node(val)){
     for(int i = 0; i < padding; i++) printf(" ");
     printf(val == BDD_TRUE? "TRUE\n" : "FALSE\n");
@@ -139,23 +152,25 @@ static void bdd_dbg_print__i(bdd_t val, int padding){
   for(int i = 0; i < padding; i++) printf(" ");
   printf("%s{ %lld:\n", bdd_is_negated(val) ? "!" : "", bdd_get_input(val));
 
-  bdd_node_t a = bdd_get_node(val);
-  bdd_dbg_print__i(a.v[0], padding+2);
-  bdd_dbg_print__i(a.v[1], padding+2);
+  bdd_node_t a = bdd_get_node(s, val);
+  bdd_dbg_print__i(s, a.v[0], padding+2);
+  bdd_dbg_print__i(s, a.v[1], padding+2);
 
   for(int i = 0; i < padding; i++) printf(" ");
   printf("}\n");
 }
 
-void bdd_dbg_print(bdd_t val){
-  bdd_dbg_print__i(val, 0);
+void bdd_dbg_print(void* storage, bdd_t val){
+  bdd_storage_t *s = storage;
+  bdd_dbg_print__i(s, val, 0);
 }
 
 // -- bdd_val_single
 
 
-bdd_t bdd_val_single(shift_t inputBit){
-  return bdd_new_node(BDD_FALSE, BDD_TRUE, inputBit);
+bdd_t bdd_val_single(void* storage, shift_t inputBit){
+  bdd_storage_t *s = storage;
+  return bdd_new_node(s, BDD_FALSE, BDD_TRUE, inputBit);
 }
 
 
@@ -185,16 +200,12 @@ static inline hash_t cache__h(uint64_t opType, bdd_t sub0, bdd_t sub1){
   return (h0 ^ h1) & ~(BDD_CACHE_WAYS-1);
 }
 
-typedef struct{ uint64_t opType; bdd_t sub[2]; uint64_t value; } cache_elem_t;
 
-static cache_elem_t cache[1ll << BDD_CACHE_BITS];
-static uint64_t cache_items;
-
-static inline bool cache_contains__index(uint64_t opType, bdd_t sub0, bdd_t sub1, int *ret_index){
+static inline bool cache_contains__index(bdd_storage_t *s, uint64_t opType, bdd_t sub0, bdd_t sub1, int *ret_index){
   hash_t hash = cache__h(opType, sub0, sub1);
   for(int i = 0; i < BDD_CACHE_WAYS; i++){ // associative cache
     hash_t hash_it = hash | i;
-    cache_elem_t* it = & cache[hash_it];
+    cache_elem_t* it = & s->cache[hash_it];
     if(it->opType == CACHE_OPTYPE__UNUSED){
       *ret_index = i;
       return 0;
@@ -210,24 +221,22 @@ static inline bool cache_contains__index(uint64_t opType, bdd_t sub0, bdd_t sub1
 }
 
 
-static inline bool cache_contains(uint64_t opType, bdd_t sub0, bdd_t sub1){
+static inline bool cache_contains(bdd_storage_t *s, uint64_t opType, bdd_t sub0, bdd_t sub1){
   int ignore;
-  return cache_contains__index(opType, sub0, sub1, &ignore);
+  return cache_contains__index(s, opType, sub0, sub1, &ignore);
 }
 
-static uint64_t cache_gos_movements;
-static uint64_t cache_gos_requests;
-static inline uint64_t cache_get_or_set(uint64_t opType, bdd_t sub0, bdd_t sub1, uint64_t value_if_missing){
-  cache_gos_requests++;
+static inline uint64_t cache_get_or_set(bdd_storage_t *s, uint64_t opType, bdd_t sub0, bdd_t sub1, uint64_t value_if_missing){
+  s->cache_gos_requests++;
 
   hash_t hash = cache__h(opType, sub0, sub1);
 
   int i;
   cache_elem_t to_add;
-  if(cache_contains__index(opType, sub0, sub1, & i)) //get index
-    to_add = cache[hash | i];
+  if(cache_contains__index(s, opType, sub0, sub1, & i)) //get index
+    to_add = s->cache[hash | i];
   else{
-    cache_items++;
+    s->cache_items++;
     to_add = (cache_elem_t){ opType, {sub0, sub1},  value_if_missing};
 
     // if full, remove the least accessed one.
@@ -235,27 +244,29 @@ static inline uint64_t cache_get_or_set(uint64_t opType, bdd_t sub0, bdd_t sub1,
   }
 
   // move to create a slot for the last accessed one
-  cache_gos_movements += i;
+  s->cache_gos_movements += i;
   for(;i > 0; i--)
-    cache[hash | i] = cache[hash | (i-1)];
-  cache[hash] = to_add;
+    s->cache[hash | i] = s->cache[hash | (i-1)];
+  s->cache[hash] = to_add;
 
   return to_add.value;
 }
 
-double bdd_dbg_cacheTurnover(void){
-  return ((double) cache_items) / (1ll << BDD_CACHE_BITS);
+double bdd_dbg_cacheTurnover(void *storage){
+  bdd_storage_t *s = storage;
+  return ((double) s->cache_items) / (1ll << BDD_CACHE_BITS);
 }
 
-double bdd_dbg_cacheMovementRate(void){
-  return ((double) cache_gos_movements) / cache_gos_requests / (BDD_CACHE_WAYS-1);
+double bdd_dbg_cacheMovementRate(void *storage){
+  bdd_storage_t *s = storage;
+  return ((double) s->cache_gos_movements) / s->cache_gos_requests / (BDD_CACHE_WAYS-1);
 }
 
 
 // -- bdd_op_and
 
 
-static bdd_t bdd_op_and__uncached(bdd_t val0, bdd_t val1){
+static bdd_t bdd_op_and__uncached(bdd_storage_t *s, bdd_t val0, bdd_t val1){
   bdd_t val[2] = { val0, val1 };
 
   for(int i = 0; i < 2; i++){
@@ -265,7 +276,7 @@ static bdd_t bdd_op_and__uncached(bdd_t val0, bdd_t val1){
     }
   }
 
-  bdd_node_t a[2] = { bdd_get_node(val0), bdd_get_node(val1) };
+  bdd_node_t a[2] = { bdd_get_node(s, val0), bdd_get_node(s, val1) };
   shift_t i[2] = { bdd_get_input(val0), bdd_get_input(val1) };
 
   int min = i[0] <= i[1] ? 0 : 1;  // parameter with the minimal input, minimal -> first.
@@ -282,27 +293,28 @@ static bdd_t bdd_op_and__uncached(bdd_t val0, bdd_t val1){
 
   bdd_t sub[2];
   if(i[min] == i[max]){
-    sub[0] = bdd_op_and(a[0].v[0], a[1].v[0]); // sub 0, v[0]
-    sub[1] = bdd_op_and(a[0].v[1], a[1].v[1]);
+    sub[0] = bdd_op_and(s, a[0].v[0], a[1].v[0]); // sub 0, v[0]
+    sub[1] = bdd_op_and(s, a[0].v[1], a[1].v[1]);
   }else{
-    sub[0] = bdd_op_and(a[min].v[0], val[max]);  // sub 0, v[0]
-    sub[1] = bdd_op_and(a[min].v[1], val[max]); // only open the one with the first input, leave the other unchanged.
+    sub[0] = bdd_op_and(s, a[min].v[0], val[max]);  // sub 0, v[0]
+    sub[1] = bdd_op_and(s, a[min].v[1], val[max]); // only open the one with the first input, leave the other unchanged.
   }
 
-  return bdd_new_node(sub[0], sub[1], i[min]);
+  return bdd_new_node(s, sub[0], sub[1], i[min]);
 }
 
-bdd_t bdd_op_and(bdd_t val0, bdd_t val1){
+bdd_t bdd_op_and(void *storage, bdd_t val0, bdd_t val1){
+  bdd_storage_t *s = storage;
   uint64_t value = 0;
-  if(!cache_contains(CACHE_OPTYPE__AND, val0, val1))
-    value = bdd_op_and__uncached(val0, val1);
-  return cache_get_or_set(CACHE_OPTYPE__AND, val0, val1, value);
+  if(!cache_contains(s, CACHE_OPTYPE__AND, val0, val1))
+    value = bdd_op_and__uncached(s, val0, val1);
+  return cache_get_or_set(s, CACHE_OPTYPE__AND, val0, val1, value);
 }
 
 
 // -- bdd_op_xor
 
-static bdd_t bdd_op_xor__uncached(bdd_t val0, bdd_t val1){
+static bdd_t bdd_op_xor__uncached(bdd_storage_t *s, bdd_t val0, bdd_t val1){
   bdd_t val[2] = { val0, val1 };
 
   // handle constants
@@ -321,9 +333,9 @@ static bdd_t bdd_op_xor__uncached(bdd_t val0, bdd_t val1){
       val[i] = bdd_op_neg(val[i]);
     }
   }
-  if(count_neg == 1) return bdd_op_neg(bdd_op_xor(val[0], val[1]));
+  if(count_neg == 1) return bdd_op_neg(bdd_op_xor(s, val[0], val[1]));
 
-  bdd_node_t a[2] = { bdd_get_node(val[0]), bdd_get_node(val[1]) };
+  bdd_node_t a[2] = { bdd_get_node(s, val[0]), bdd_get_node(s, val[1]) };
   shift_t i[2] = { bdd_get_input(val[0]), bdd_get_input(val[1]) };
 
   int min = i[0] < i[1] ? 0 : 1;  // parameter with the minimal input, minimal -> first.
@@ -331,44 +343,45 @@ static bdd_t bdd_op_xor__uncached(bdd_t val0, bdd_t val1){
 
   bdd_t sub[2];
   if(i[min] == i[max]){
-    sub[0] = bdd_op_xor(a[0].v[0], a[1].v[0]); // sub 0, v[0]
-    sub[1] = bdd_op_xor(a[0].v[1], a[1].v[1]);
+    sub[0] = bdd_op_xor(s, a[0].v[0], a[1].v[0]); // sub 0, v[0]
+    sub[1] = bdd_op_xor(s, a[0].v[1], a[1].v[1]);
   }else{
-    sub[0] = bdd_op_xor(a[min].v[0], val[max]);  // sub 0, v[0]
-    sub[1] = bdd_op_xor(a[min].v[1], val[max]); // only open the one with the first input, leave the other unchanged.
+    sub[0] = bdd_op_xor(s, a[min].v[0], val[max]);  // sub 0, v[0]
+    sub[1] = bdd_op_xor(s, a[min].v[1], val[max]); // only open the one with the first input, leave the other unchanged.
   }
 
-  return bdd_new_node(sub[0], sub[1], i[min]);
+  return bdd_new_node(s, sub[0], sub[1], i[min]);
 }
 
-bdd_t bdd_op_xor(bdd_t val0, bdd_t val1){
+bdd_t bdd_op_xor(void *storage, bdd_t val0, bdd_t val1){
+  bdd_storage_t *s = storage;
   uint64_t value = 0;
-  if(!cache_contains(CACHE_OPTYPE__XOR, val0, val1))
-    value = bdd_op_xor__uncached(val0, val1);
-  return cache_get_or_set(CACHE_OPTYPE__XOR, val0, val1, value);
+  if(!cache_contains(s, CACHE_OPTYPE__XOR, val0, val1))
+    value = bdd_op_xor__uncached(s, val0, val1);
+  return cache_get_or_set(s, CACHE_OPTYPE__XOR, val0, val1, value);
 }
 
 
 // -- bdd_op_getTransformWithoutRnd
 
 
-static fixed_cell_t bdd_op_getSumRNDs__sum(bdd_t val){ // do the sum recursively
-  if(bdd_is_negated(val)) return -bdd_op_getSumRNDs__sum(bdd_op_neg(val));
+static fixed_cell_t bdd_op_getSumRNDs__sum(bdd_storage_t *s, bdd_t val){ // do the sum recursively
+  if(bdd_is_negated(val)) return -bdd_op_getSumRNDs__sum(s, bdd_op_neg(val));
   if(!bdd_is_node(val)) return -1ll << NUM_RANDOMS;
 
   uint64_t value = 0;
-  if(!cache_contains(CACHE_OPTYPE__SUM, val, val)){
-    bdd_node_t a = bdd_get_node(val);
-    value = (bdd_op_getSumRNDs__sum(a.v[0]) + bdd_op_getSumRNDs__sum(a.v[1]))/2;  // /2 as each covers half the column space
+  if(!cache_contains(s, CACHE_OPTYPE__SUM, val, val)){
+    bdd_node_t a = bdd_get_node(s, val);
+    value = (bdd_op_getSumRNDs__sum(s, a.v[0]) + bdd_op_getSumRNDs__sum(s, a.v[1]))/2;  // /2 as each covers half the column space
   }
-  return cache_get_or_set(CACHE_OPTYPE__SUM, val, val, value);
+  return cache_get_or_set(s, CACHE_OPTYPE__SUM, val, val, value);
 }
 
 
-static void bdd_op_getSumRNDs__i(bdd_t val, shift_t ins_missing, bool is_pos, fixed_cell_t *ret){ // recursively travel the BDD until you get to the randoms
+static void bdd_op_getSumRNDs__i(bdd_storage_t *s, bdd_t val, shift_t ins_missing, bool is_pos, fixed_cell_t *ret){ // recursively travel the BDD until you get to the randoms
   if(ins_missing == 0){
     if(!is_pos) val = bdd_op_neg(val);
-    *ret = bdd_op_getSumRNDs__sum(val);
+    *ret = bdd_op_getSumRNDs__sum(s, val);
     return;
   }
 
@@ -383,16 +396,16 @@ static void bdd_op_getSumRNDs__i(bdd_t val, shift_t ins_missing, bool is_pos, fi
   } else if(bdd_get_input(val) != NUM_INS*D-ins_missing){ // the two a.v are the same.
     a.v[0] = a.v[1] = val;
   } else {
-    a = bdd_get_node(val);
+    a = bdd_get_node(s, val);
   }
 
-  bdd_op_getSumRNDs__i(a.v[0], ins_missing-1, is_pos, ret);
-  bdd_op_getSumRNDs__i(a.v[1], ins_missing-1, is_pos, ret + (1ll << (NUM_INS*D-ins_missing)));
+  bdd_op_getSumRNDs__i(s, a.v[0], ins_missing-1, is_pos, ret);
+  bdd_op_getSumRNDs__i(s, a.v[1], ins_missing-1, is_pos, ret + (1ll << (NUM_INS*D-ins_missing)));
 }
 
 // get for each input, the sum of the values, with true=1, false=-1.
-static void bdd_op_getSumRNDs(bdd_t val, fixed_cell_t ret[NUM_NORND_COLS]){
-  bdd_op_getSumRNDs__i(val, NUM_INS*D, 1, ret);
+static inline void bdd_op_getSumRNDs(bdd_storage_t *s, bdd_t val, fixed_cell_t ret[NUM_NORND_COLS]){
+  bdd_op_getSumRNDs__i(s, val, NUM_INS*D, 1, ret);
 }
 
 // Fast Walsh-Hadamard transform
@@ -409,7 +422,8 @@ static void inPlaceTransform(fixed_cell_t *tr, col_t size){ // tr must have 1 fo
   inPlaceTransform(tr + h, h);
 }
 
-void bdd_get_transformWithoutRnd(bdd_t val, fixed_cell_t ret[NUM_NORND_COLS]){
-  bdd_op_getSumRNDs(val, ret);
+void bdd_get_transformWithoutRnd(void *storage, bdd_t val, fixed_cell_t ret[NUM_NORND_COLS]){
+  bdd_storage_t *s = storage;
+  bdd_op_getSumRNDs(s, val, ret);
   inPlaceTransform(ret, NUM_NORND_COLS);
 }

@@ -3,7 +3,7 @@
 #include <stdlib.h>
 
 #include "types.h"
-#include "correlationTable.h"
+#include "row.h"
 
 
 
@@ -16,11 +16,6 @@
 #endif
 
 
-
-// useful def
-#define LEAD_1(x) (63 - __builtin_clzll((x)))
-#define TAIL_1(x) LEAD_1((x)&-(x))
-#define MAX(x, y)  ((x) > (y) ? (x) : (y))
 
 // -- getRow
 

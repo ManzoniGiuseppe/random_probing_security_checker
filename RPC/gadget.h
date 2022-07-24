@@ -7,7 +7,7 @@
 
 extern int gadget_probeMulteplicity[NUM_PROBES];
 
-void gadget_fn(bdd_t x[NUM_TOT_INS], bdd_t ret[NUM_TOT_OUTS]);
+void gadget_fn(void *bdd, bdd_t x[NUM_TOT_INS], bdd_t ret[NUM_TOT_OUTS]);
 
 
 
