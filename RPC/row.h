@@ -21,7 +21,9 @@ row_t row_and(row_t r0, row_t r1);
 row_t row_xor(row_t r0, row_t r1);
 row_t row_not(row_t r);
 row_t row_first(void);
+shift_t row_numOnes(row_t r);
 bool row_tryNextOut(row_t *curr);
+bool row_tryNextProbe(row_t *curr);
 bool row_tryNextProbeAndOut(row_t *curr);
 bool row_tryGetNext(row_t highestRow, row_t *curr);
 

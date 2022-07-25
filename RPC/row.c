@@ -69,7 +69,7 @@ row_t row_not(row_t r){
   return r;
 }
 
-static inline shift_t row_getPop(row_t r){
+shift_t row_numOnes(row_t r){
   shift_t ret = 0;
   for(int i = 0; i < ROW_VALUES_SIZE; i++){
     ret += __builtin_popcountll(r.values[i]);
@@ -112,13 +112,10 @@ bool row_tryNextOut(row_t *curr){
   return 0; // automatically resets the output combination
 }
 
-bool row_tryNextProbeAndOut(row_t *curr){
-  if(row_tryNextOut(curr)) return 1;
-
-  // increment the combination of porbes
-  if(row_getPop(*curr) == NUM_PROBES || MAX_COEFF == 0) return 0; // end as we covered all probes.
+bool row_tryNextProbe(row_t *curr){
+  if(row_numOnes(*curr) == NUM_PROBES || MAX_COEFF == 0) return 0; // end as we covered all probes.
   row_t next = row_add(*curr, 1ll << (NUM_OUTS * D), 0); // just increment the probe combination
-  if(row_getPop(next) <= MAX_COEFF){
+  if(row_numOnes(next) <= MAX_COEFF){
     *curr = next;
     return 1;
   }
@@ -131,6 +128,12 @@ bool row_tryNextProbeAndOut(row_t *curr){
   if( i * 64 + LEAD_1(curr->values[i])  >= NUM_TOT_OUTS) return 0; // if overflows
 
   return 1;
+
+}
+
+bool row_tryNextProbeAndOut(row_t *curr){
+  if(row_tryNextOut(curr)) return 1;
+  return row_tryNextProbe(curr);
 }
 
 

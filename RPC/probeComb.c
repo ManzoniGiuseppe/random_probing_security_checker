@@ -1,3 +1,6 @@
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "probeComb.h"
 #include "row.h"
 #include "gadget.h"
@@ -40,7 +43,7 @@ shift_t probeComb_getRowMulteplicity(probeComb_t curr_comb){
 }
 
 bool probeComb_tryIncrement(probeComb_t curr_comb, shift_t* curr_count){ // inited respectively to all 0s and 0.
-  shift_t to_inc = 0;
+  shift_t to_inc;
   if(*curr_count < MAX_COEFF) to_inc = 0; // if there are probes left, increment normally
   else { // already hit the maximum.
     shift_t i;
@@ -86,3 +89,43 @@ double probeComb_getProbesMulteplicity(probeComb_t curr_comb){
   return ret;
 }
 
+
+void probeComb_firstWhoseImageIs(row_t highest_row, probeComb_t ret_comb, shift_t *ret_count){
+  *ret_count = 0;
+  for(shift_t i = 0; i < NUM_PROBES; i++){
+    row_t it = row_singleInput(i + NUM_OUTS * D);
+    ret_comb[i] = row_eq(it, row_and(highest_row, it));
+    *ret_count += ret_comb[i];
+  }
+  if(*ret_count > MAX_COEFF) FAIL("probeComb: more probes than MAX_COEFF")
+}
+
+bool probeComb_nextWhoseImageIs(row_t highest_row, probeComb_t curr_comb, shift_t *curr_count){
+  shift_t to_inc;
+  if(*curr_count < MAX_COEFF) to_inc = 0; // if there are probes left, increment normally
+  else { // already hit the maximum.
+    shift_t i;
+    for(i = 0; i < NUM_PROBES && curr_comb[i] <= 1; i++);  // find lowest position that can be decremented
+    if(i == NUM_PROBES) return 0; // can't move any bit to increment.
+
+    *curr_count -= curr_comb[i]-1;  // consider is as if it has hit its maximum and increment it
+    curr_comb[i] = 1;
+    to_inc = i+1; // ask to increment the next, due to overflow
+  }
+
+  bool carry = 1;
+  for(shift_t i = to_inc; i < NUM_PROBES && carry; i++){
+    if(curr_comb[i] == 0){
+      continue; // can't change the highest_row relative to the probe combination
+    }else if(curr_comb[i] < gadget_probeMulteplicity[i]){ // if can still increment without overflowing
+      curr_comb[i] += 1;
+      *curr_count += 1;
+      carry = 0;
+    }else{ // reached maximum
+      *curr_count -= curr_comb[i]-1;
+      curr_comb[i] = 1;
+    }
+  }
+
+  return !carry;  // if there is still a carry, we looped back. Otherwise we succeded.
+}

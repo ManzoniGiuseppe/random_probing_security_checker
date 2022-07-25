@@ -70,15 +70,16 @@ coeff_t calc_rpsIs(void){
   uint8_t* probeData = mem_calloc(sizeof(uint8_t), 1ll << ROWTRANSFORM_ROW_BITS, "probeData for calc_rpsIs");
 
   coeff_t ret = coeff_zero();
-
-  ITERATE_OVER_PROBES(probes, coeffNum, {
-    row_t row = probeComb_getHighestRow_noOut(probes); // TODO: fix, iterate over row_t.
+  row_t row = row_first();
+  do{
     bool is = probeData_anyNot0(probeData, rowData, row);
     if(is != 0){
-      double mul = probeComb_getProbesMulteplicity(probes);
-      ret.values[coeffNum] += is * mul;
+      ITERATE_OVER_PROBES_WHOSE_IMAGE_IS(row, probeComb, coeffNum, {
+        double mul = probeComb_getProbesMulteplicity(probeComb);
+        ret.values[coeffNum] += mul;
+      })
     }
-  })
+  }while(row_tryNextProbe(& row));
 
   mem_free(rowData);
   mem_free(probeData);

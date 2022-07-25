@@ -90,14 +90,17 @@ coeff_t calc_rpcIs(void){
     if(row_maxShares(output) != T) continue; // the max will be in the ones with most outputs
     coeff_t curr = coeff_zero();
 
-    ITERATE_OVER_PROBES(probes, coeffNum, {
-      row_t row = probeComb_getHighestRow(probes, output);
+    row_t probe = row_first();
+    do{
+      row_t row = row_or(probe, output);
       bool is = probeData_is(probeData, rowData, row);
       if(is != 0){
-        double mul = probeComb_getProbesMulteplicity(probes);
-        curr.values[coeffNum] += is * mul;
+        ITERATE_OVER_PROBES_WHOSE_IMAGE_IS(row, probeComb, coeffNum, {
+          double mul = probeComb_getProbesMulteplicity(probeComb);
+          curr.values[coeffNum] += mul;
+        })
       }
-    })
+    }while(row_tryNextProbe(& probe));
 
     ret = coeff_max(ret, curr);
   }while(row_tryNextOut(& output));

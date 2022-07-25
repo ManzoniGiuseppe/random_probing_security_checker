@@ -90,6 +90,7 @@ int main(){
   print_coeff(calc_rpsSum(), "RPS", "Mgm", "  ");
   print_coeff(calc_rpcIs(),  "RPC", "M0", "   ");
   print_coeff(calc_rpcSum(), "RPC", "Mgm", "  ");
+  print_coeff(calc_rpcTeo(), "RPC", "Mteo", " ");
 
   printf("rowTransform, transform: used=%f%%\n",  rowTransform_transform_dbg_fill() * 100);
   printf("rowTransform, transform: hashConflict=%f%%\n",  rowTransform_transform_dbg_hashConflictRate() * 100);

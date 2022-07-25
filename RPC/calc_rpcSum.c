@@ -118,7 +118,6 @@ coeff_t calc_rpcSum(void){
         *data_get(rowData, i, ii, ROWTRANSFORM_TRANSFORM_BITS) = UNINIT_SUM;
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
-  // it contains a lower bound that it high enough for its probe.
   fixed_sum_t* probeData = mem_calloc(sizeof(fixed_sum_t), (1ll << ROWTRANSFORM_ROW_BITS) * NUM_NORND_COLS, "probeData for calc_rpcSum");
   for(hash_s_t i = 0; i < 1ll << ROWTRANSFORM_ROW_BITS; i++)
     for(col_t ii = 0; ii < NUM_NORND_COLS; ii++)

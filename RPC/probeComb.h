@@ -26,6 +26,18 @@ bool probeComb_tryIncrement(probeComb_t curr_comb, shift_t* curr_count);
 
 double probeComb_getProbesMulteplicity(probeComb_t curr_comb);
 
+void probeComb_firstWhoseImageIs(row_t highest_row, probeComb_t ret_comb, shift_t *ret_count);
+bool probeComb_nextWhoseImageIs(row_t highest_row, probeComb_t curr_comb, shift_t *curr_count);
+
+#define ITERATE_OVER_PROBES_WHOSE_IMAGE_IS(highest_row, iterator_comb, iterator_count, code)  { \
+    probeComb_t iterator_comb = {0}; \
+    shift_t iterator_count = 0; \
+    probeComb_firstWhoseImageIs(highest_row, iterator_comb, &iterator_count); \
+    do{ \
+      code \
+    }while(probeComb_nextWhoseImageIs(highest_row, iterator_comb, &iterator_count)); \
+  }
+
 
 #endif // _PROBECOMB_H_
 
