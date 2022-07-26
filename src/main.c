@@ -86,11 +86,25 @@ int main(){
 
   calculateAllRowTransform();
 
+#ifdef WITH_RPS_IS
   print_coeff(calc_rpsIs(),  "RPS", "M0", "   ");
+#endif
+
+#ifdef WITH_RPS_SUM
   print_coeff(calc_rpsSum(), "RPS", "Mgm", "  ");
+#endif
+
+#ifdef WITH_RPC_IS
   print_coeff(calc_rpcIs(),  "RPC", "M0", "   ");
+#endif
+
+#ifdef WITH_RPC_SUM
   print_coeff(calc_rpcSum(), "RPC", "Mgm", "  ");
+#endif
+
+#ifdef WITH_RPC_TEO
   print_coeff(calc_rpcTeo(), "RPC", "Mteo", " ");
+#endif
 
   printf("rowTransform, transform: used=%f%%\n",  rowTransform_transform_dbg_fill() * 100);
   printf("rowTransform, transform: hashConflict=%f%%\n",  rowTransform_transform_dbg_hashConflictRate() * 100);
@@ -98,7 +112,6 @@ int main(){
   printf("rowTransform, row: hashConflict=%f%%\n",  rowTransform_row_dbg_hashConflictRate() * 100);
   printf("rowTransform, assoc: used=%f%%\n",  rowTransform_assoc_dbg_fill() * 100);
   printf("rowTransform, assoc: hashConflict=%f%%\n",  rowTransform_assoc_dbg_hashConflictRate() * 100);
-
 
   return 0;
 }

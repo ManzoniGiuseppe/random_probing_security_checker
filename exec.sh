@@ -3,17 +3,42 @@
 
 #-- header
 
+operations=""
+paramT=0  # for rps
 
-if [ "$#" -ne 3 ] ; then
-  echo 'params: <gadget.sage> <maxCoeff> <t>'
-  exit
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -s) paramSage="$2"; shift 2;;
+    -c) paramMaxCoeff="$2"; shift 2;;
+
+    --rps) operations="${operations} -DWITH_RPS_IS -DWITH_RPS_SUM"; shift 1;;
+    --rpsIs) operations="${operations} -DWITH_RPS_IS"; shift 1;;
+    --rpsSum) operations="${operations} -DWITH_RPS_SUM"; shift 1;;
+    --rpc=*) operations="${operations} -DWITH_RPC_IS -DWITH_RPC_SUM -DWITH_RPC_TEO"; paramT="${1#*=}"; shift 1;;
+    --rpcIs=*) operations="${operations} -DWITH_RPC_IS"; paramT="${1#*=}"; shift 1;;
+    --rpcSum=*) operations="${operations} -DWITH_RPC_SUM"; paramT="${1#*=}"; shift 1;;
+    --rpcTeo=*) operations="${operations} -DWITH_RPC_TEO"; paramT="${1#*=}"; shift 1;;
+
+    -s=*|--sage=*) paramSage="${1#*=}"; shift 1;;
+    -c=*|--maxCoeff=*|--coeff=*) paramMaxCoeff="${1#*=}"; shift 1;;
+    --sage|--maxCoeff|--rpcIs|--rpcSum|--rpcTeo) echo "$1 requires an argument" >&2; exit 1;;
+
+    -*) echo "Unknown option: $1" >&2; exit 1;;
+    *) echo "No option specified: $1" >&2; shift 1;;
+  esac
+done
+
+if [ ! -e "$paramSage" ] ; then
+  echo 'The file .sage with the gadget must exist.' >&2
+  exit 1
 fi
 
-if [ ! -e "$1" ] ; then
-  echo 'params: <gadget.sage> <maxCoeff> <t>'
-  echo 'ERR: the file with the gadget must exist.'
-  exit
+if [ -z "$operations" ] ; then
+  echo 'At least an operation must be specified.' >&2
+  exit 1
 fi
+
+
 
 
 # create temporary files
@@ -23,7 +48,7 @@ dir=$(mktemp -d) || exit 1
 
 
 # save file in case it's from a pipe
-cat $1 > $dir/raw_in
+cat "$paramSage" > $dir/raw_in
 
 
 
@@ -92,8 +117,8 @@ multeplicity_array="$(cat $dir/translated_assignments | ./get_probes_multipicity
 
 tot_mul_probes=$(echo "${multeplicity_array}" | tr '{},' '  \n'| awk '{s+=$1} END {print s}')
 num_nornd_cols=$[ 1 << ( numUndIns * d ) ]
-rows_used_bits=$(./getNumRowsUsed.py $numProb $2 $numUndOuts $d $3)
-gcc_flags_macro="-DNUM_INS=${numUndIns} -DNUM_OUTS=${numUndOuts} -DD=${d} -DNUM_RANDOMS=${numRnd} -DNUM_PROBES=${numProb} -DT=${3} -DMAX_COEFF=${2} -DROWTRANSFORM_TRANSFORM_BITS=16 -DROWTRANSFORM_ROW_BITS=$[rows_used_bits-1] -DROWTRANSFORM_ASSOC_BITS=${rows_used_bits} -DTOT_MUL_PROBES=${tot_mul_probes} -DBDD_STORAGE_BITS=24 -DBDD_CACHE_BITS=22 -DBDD_CACHE_WAYS=4 -DNUM_TOT_INS=${numIns} -DNUM_TOT_OUTS=${numOuts} -DNUM_NORND_COLS=${num_nornd_cols} -DFN_CMP_STEP=0.0001"
+rows_used_bits=$(./getNumRowsUsed.py $numProb $paramMaxCoeff $numUndOuts $d $paramT)
+gcc_flags_macro="${operations} -DNUM_INS=${numUndIns} -DNUM_OUTS=${numUndOuts} -DD=${d} -DNUM_RANDOMS=${numRnd} -DNUM_PROBES=${numProb} -DT=${paramT} -DMAX_COEFF=${paramMaxCoeff} -DROWTRANSFORM_TRANSFORM_BITS=16 -DROWTRANSFORM_ROW_BITS=$[rows_used_bits-1] -DROWTRANSFORM_ASSOC_BITS=${rows_used_bits} -DTOT_MUL_PROBES=${tot_mul_probes} -DBDD_STORAGE_BITS=24 -DBDD_CACHE_BITS=22 -DBDD_CACHE_WAYS=4 -DNUM_TOT_INS=${numIns} -DNUM_TOT_OUTS=${numOuts} -DNUM_NORND_COLS=${num_nornd_cols} -DFN_CMP_STEP=0.0001"
 
 cat > $dir/gadget.c << EOF
 #include "gadget.h"
@@ -108,7 +133,7 @@ EOF
 
 #-- finalize
 
-cp *.c *.h $dir
+cp src/* $dir
 
 pushd $dir
 trap 'popd >/dev/null ; rm -rf "$dir"' EXIT
