@@ -21,7 +21,12 @@
 // NOTE: assigning from fixed_cell_t to fixed_sum_t implies a /2
 
 
-static fixed_sum_t rowData_sumAbs(fixed_sum_t *rowData, row_t row){
+static fixed_sum_t *rowData;
+static fixed_sum_t *probeData;
+static hash_s_t row_size;
+static hash_s_t probe_size;
+
+static fixed_sum_t rowData_sumAbs(row_t row){
   fixed_sum_t *it = & rowData[rowTransform_transform_hash(row)];
   if(*it != UNINIT_SUM) return *it; // inited
 
@@ -37,11 +42,11 @@ static fixed_sum_t rowData_sumAbs(fixed_sum_t *rowData, row_t row){
 }
 
 // second sum (without multeplicity)
-static fixed_sum_t probeData_sumAbs(fixed_sum_t *probeData, fixed_sum_t *rowData, row_t row){
+static fixed_sum_t probeData_sumAbs(row_t row){
   fixed_sum_t *it = & probeData[rowTransform_row_hash(row)];
   if(*it != UNINIT_SUM) return *it; // inited
 
-  fixed_sum_t onlyRow = rowData_sumAbs(rowData, row);
+  fixed_sum_t onlyRow = rowData_sumAbs(row);
   if(onlyRow == MAX_FIXED_SUM){
     *it = MAX_FIXED_SUM;
     return MAX_FIXED_SUM;
@@ -49,7 +54,7 @@ static fixed_sum_t probeData_sumAbs(fixed_sum_t *probeData, fixed_sum_t *rowData
 
   /* check if any of the direct sub-probes has reached the max, if so then this is too */
   ITERATE_OVER_DIRECT_SUB_ROWS(row, sub, {
-    if(probeData_sumAbs(probeData, rowData, sub) + onlyRow >= MAX_FIXED_SUM){
+    if(probeData_sumAbs(sub) + onlyRow >= MAX_FIXED_SUM){
       *it = MAX_FIXED_SUM;
       return MAX_FIXED_SUM;
     }
@@ -59,7 +64,7 @@ static fixed_sum_t probeData_sumAbs(fixed_sum_t *probeData, fixed_sum_t *rowData
   *it = 0;
   row_t sub = row_first();
   do{
-    *it += rowData_sumAbs(rowData, sub);
+    *it += rowData_sumAbs(sub);
   }while(*it < MAX_FIXED_SUM && row_tryGetNext(row, & sub));
   *it = FIXED_SUM_NORMALIZE(*it);
   return *it;
@@ -67,9 +72,9 @@ static fixed_sum_t probeData_sumAbs(fixed_sum_t *probeData, fixed_sum_t *rowData
 
 
 // factor in the multeplicity, return the min(1, 1/2 * ...)
-static fixed_sum_t probeData_min(fixed_sum_t *probeData, fixed_sum_t *rowData, probeComb_t probes){
+static fixed_sum_t probeData_min(probeComb_t probes){
   shift_t shift_by = probeComb_getRowMulteplicity(probes);
-  fixed_sum_t ret = probeData_sumAbs(probeData, rowData, probeComb_getHighestRow_noOut(probes));
+  fixed_sum_t ret = probeData_sumAbs(probeComb_getHighestRow_noOut(probes));
 
   if(ret == 0) return 0; // to avoid bug in the next line if  MAX_FIXED_SUM >> shift_by == 0
   if(ret >= (MAX_FIXED_SUM >> shift_by) ) return MAX_FIXED_SUM; // nearly the same as asking if  (ret << shift_by) >= MAX_FIXED_SUM
@@ -80,21 +85,24 @@ static fixed_sum_t probeData_min(fixed_sum_t *probeData, fixed_sum_t *rowData, p
 
 
 coeff_t calc_rpsSum(void){
+  row_size = 1ll<<ROWTRANSFORM_TRANSFORM_BITS;
+  probe_size = rowTransform_row_hash_size();
+
   // to store if the wanted row as any != 0 in the appropriate columns.
-  fixed_sum_t* rowData = mem_calloc(sizeof(fixed_sum_t), 1ll << ROWTRANSFORM_TRANSFORM_BITS, "rowData for calc_rpsSum");
-  for(hash_s_t i = 0; i < 1ll << ROWTRANSFORM_TRANSFORM_BITS; i++)
+  rowData = mem_calloc(sizeof(fixed_sum_t), row_size, "rowData for calc_rpsSum");
+  for(hash_s_t i = 0; i < row_size; i++)
     rowData[i] = UNINIT_SUM;
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
-  fixed_sum_t* probeData = mem_calloc(sizeof(fixed_sum_t), 1ll << ROWTRANSFORM_ROW_BITS, "probeData for calc_rpsSum");
-  for(hash_s_t i = 0; i < 1ll << ROWTRANSFORM_ROW_BITS; i++)
+  probeData = mem_calloc(sizeof(fixed_sum_t), probe_size, "probeData for calc_rpsSum");
+  for(hash_s_t i = 0; i < probe_size; i++)
     probeData[i] = UNINIT_SUM;
 
   coeff_t ret = coeff_zero();
 
   ITERATE_OVER_PROBES(probes, coeffNum, {
     double mul = probeComb_getProbesMulteplicity(probes);
-    fixed_sum_t sum = probeData_min(probeData, rowData, probes);
+    fixed_sum_t sum = probeData_min(probes);
     ret.values[coeffNum] += sum / (double) MAX_FIXED_SUM * mul;
   })
 

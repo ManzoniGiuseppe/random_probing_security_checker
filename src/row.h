@@ -13,15 +13,15 @@ typedef struct {
 } row_t;
 
 
-shift_t row_maxShares(row_t r);
-row_t row_singleInput(shift_t input);
-bool row_eq(row_t r0, row_t r1);
-row_t row_or(row_t r0, row_t r1);
-row_t row_and(row_t r0, row_t r1);
-row_t row_xor(row_t r0, row_t r1);
-row_t row_not(row_t r);
-row_t row_first(void);
-shift_t row_numOnes(row_t r);
+shift_t row_maxShares(row_t r) __attribute__ ((const));
+row_t row_singleInput(shift_t input) __attribute__ ((const));
+bool row_eq(row_t r0, row_t r1) __attribute__ ((const));
+row_t row_or(row_t r0, row_t r1) __attribute__ ((const));
+row_t row_and(row_t r0, row_t r1) __attribute__ ((const));
+row_t row_xor(row_t r0, row_t r1) __attribute__ ((const));
+row_t row_not(row_t r) __attribute__ ((const));
+row_t row_first(void) __attribute__ ((const));
+shift_t row_numOnes(row_t r) __attribute__ ((const));
 bool row_tryNextOut(row_t *curr);
 bool row_tryNextProbe(row_t *curr);
 bool row_tryNextProbeAndOut(row_t *curr);

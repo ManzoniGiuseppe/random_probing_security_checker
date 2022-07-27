@@ -53,6 +53,7 @@ static void calculateAllRowTransform(){
 
     fixed_cell_t transform[NUM_NORND_COLS];
     bdd_get_transformWithoutRnd(bdd, row_fn, transform);
+
     rowTransform_insert(row, transform);
   }while(row_tryNextProbeAndOut(& row));
 
@@ -61,14 +62,14 @@ static void calculateAllRowTransform(){
   printf("BDD, cache: turnover=%f%%\n", bdd_dbg_cacheTurnover(bdd) * 100);
   printf("BDD, cache: movement=%f%%\n",  bdd_dbg_cacheMovementRate(bdd) * 100);
 
+  bdd_storage_free(bdd);
+  rowTransform_finalizze();
+
   printf("rowTransform, transform: used=%f%%\n",  rowTransform_transform_dbg_fill() * 100);
   printf("rowTransform, transform: hashConflict=%f%%\n",  rowTransform_transform_dbg_hashConflictRate() * 100);
-  printf("rowTransform, row: used=%f%%\n",  rowTransform_row_dbg_fill() * 100);
-  printf("rowTransform, row: hashConflict=%f%%\n",  rowTransform_row_dbg_hashConflictRate() * 100);
+  printf("rowTransform, rows: used=%f%%\n", rowTransform_row_dbg_allocRate() * 100);
   printf("rowTransform, assoc: used=%f%%\n",  rowTransform_assoc_dbg_fill() * 100);
   printf("rowTransform, assoc: hashConflict=%f%%\n",  rowTransform_assoc_dbg_hashConflictRate() * 100);
-
-  bdd_storage_free(bdd);
 }
 
 
@@ -108,8 +109,7 @@ int main(){
 
   printf("rowTransform, transform: used=%f%%\n",  rowTransform_transform_dbg_fill() * 100);
   printf("rowTransform, transform: hashConflict=%f%%\n",  rowTransform_transform_dbg_hashConflictRate() * 100);
-  printf("rowTransform, row: used=%f%%\n",  rowTransform_row_dbg_fill() * 100);
-  printf("rowTransform, row: hashConflict=%f%%\n",  rowTransform_row_dbg_hashConflictRate() * 100);
+  printf("rowTransform, rows: used=%f%%\n", rowTransform_row_dbg_allocRate() * 100);
   printf("rowTransform, assoc: used=%f%%\n",  rowTransform_assoc_dbg_fill() * 100);
   printf("rowTransform, assoc: hashConflict=%f%%\n",  rowTransform_assoc_dbg_hashConflictRate() * 100);
 

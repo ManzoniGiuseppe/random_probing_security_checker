@@ -10,12 +10,17 @@
 #define  ANY_NOT_0  2
 
 
-static inline uint8_t* data_get(uint8_t *data, hash_s_t row, col_t ii, shift_t bits){
-  return & data[row + ii * (1ll << bits)];
+static inline uint8_t* data_get(uint8_t *data, hash_s_t row, col_t ii, hash_s_t size){
+  return & data[row + ii * size];
 }
 
-static bool rowData_anyNot0(uint8_t *rowData, row_t row, col_t ii){
-  uint8_t *it = data_get(rowData, rowTransform_transform_hash(row), ii, ROWTRANSFORM_TRANSFORM_BITS);
+static uint8_t *rowData;
+static uint8_t *probeData;
+static hash_s_t row_size;
+static hash_s_t probe_size;
+
+static bool rowData_anyNot0(row_t row, col_t ii){
+  uint8_t *it = data_get(rowData, rowTransform_transform_hash(row), ii, row_size);
   if(*it) return *it == ANY_NOT_0; // inited
 
   fixed_cell_t transform[NUM_NORND_COLS];
@@ -31,18 +36,18 @@ static bool rowData_anyNot0(uint8_t *rowData, row_t row, col_t ii){
   return 0;
 }
 
-static bool probeData_anyNot0(uint8_t* probeData, uint8_t *rowData, row_t row, col_t ii){
-  uint8_t *it = data_get(probeData, rowTransform_row_hash(row), ii, ROWTRANSFORM_ROW_BITS);
+static bool probeData_anyNot0(row_t row, col_t ii){
+  uint8_t *it = data_get(probeData, rowTransform_row_hash(row), ii, probe_size);
   if(*it) return *it == ANY_NOT_0; // inited
 
-  if(rowData_anyNot0(rowData, row, ii)){
+  if(rowData_anyNot0(row, ii)){
     *it = ANY_NOT_0;
     return 1;
   }
 
   /* check if any of the direct sub-probes has the 1, if so then this is too */
   ITERATE_OVER_DIRECT_SUB_ROWS(row, sub, {
-    if(probeData_anyNot0(probeData, rowData, sub, ii)){
+    if(probeData_anyNot0(sub, ii)){
       *it = ANY_NOT_0;
       return 1;
     }
@@ -52,9 +57,9 @@ static bool probeData_anyNot0(uint8_t* probeData, uint8_t *rowData, row_t row, c
   return 0;
 }
 
-static bool probeData_is(uint8_t *probeData, uint8_t *rowData, row_t row){
+static bool probeData_is(row_t row){
   for(col_t ii = 0; ii < NUM_NORND_COLS; ii++){
-    if(calcUtils_maxSharesIn(ii) <= T && !probeData_anyNot0(probeData, rowData, row, ii)){
+    if(calcUtils_maxSharesIn(ii) <= T && !probeData_anyNot0(row, ii)){
       return 0; // all must be true
     }
   }
@@ -65,11 +70,14 @@ static bool probeData_is(uint8_t *probeData, uint8_t *rowData, row_t row){
 
 
 coeff_t calc_rpcIs(void){
+  row_size = 1ll<<ROWTRANSFORM_TRANSFORM_BITS;
+  probe_size = rowTransform_row_hash_size();
+
   // to store if the wanted row as any != 0 in the appropriate columns.
-  uint8_t* rowData = mem_calloc(sizeof(uint8_t), (1ll << ROWTRANSFORM_TRANSFORM_BITS) * NUM_NORND_COLS, "rowData for calc_rpcIs");
+  rowData = mem_calloc(sizeof(uint8_t), row_size * NUM_NORND_COLS, "rowData for calc_rpcIs");
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
-  uint8_t* probeData = mem_calloc(sizeof(uint8_t), (1ll << ROWTRANSFORM_ROW_BITS) * NUM_NORND_COLS, "probeData for calc_rpcIs");
+  probeData = mem_calloc(sizeof(uint8_t), probe_size * NUM_NORND_COLS, "probeData for calc_rpcIs");
 
   coeff_t ret = coeff_zero();
   row_t output = row_first();
@@ -80,7 +88,7 @@ coeff_t calc_rpcIs(void){
     row_t probe = row_first();
     do{
       row_t row = row_or(probe, output);
-      bool is = probeData_is(probeData, rowData, row);
+      bool is = probeData_is(row);
       if(is != 0){
         ITERATE_OVER_PROBES_WHOSE_IMAGE_IS(row, probeComb, coeffNum, {
           double mul = probeComb_getProbesMulteplicity(probeComb);

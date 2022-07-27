@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "types.h"
 #include "mem.h"
 #include "row.h"
 #include "rowTransform.h"
+#include "hashSet.h"
 
 
 
@@ -21,76 +23,17 @@
 
 
 typedef struct {
-  hash_l_t base_hash; // 0 for unused
+  hash_l_t hash; // mandatory here.
   fixed_cell_t transform[NUM_NORND_COLS];
-} reservation_trans_t;
+} reservation_tran_t;
 
-static reservation_trans_t *reservation_trans;
-static size_t reservation_trans_items;
+static hashSet_t htTran;
 
-static void __attribute__ ((constructor)) allocReservationTrans(){
-  reservation_trans = mem_calloc(sizeof(reservation_trans_t), 1ll << ROWTRANSFORM_TRANSFORM_BITS, "reservation_trans for rowTransform");
+static void __attribute__ ((constructor)) allocReservationTran(){
+  htTran = hashSet_new(ROWTRANSFORM_TRANSFORM_BITS, sizeof(reservation_tran_t), "htTran for rowTransform");
 }
 static void __attribute__ ((destructor)) freeReservationTrans(){
-  mem_free(reservation_trans);
-}
-
-#define ROT(x, pos) (((x) << (pos)) | ((x) >> (-(pos) & 63)))
-// must be pow2
-#define RESERVATION_TRANS_HT_BLOCK 32
-
-#if RESERVATION_TRANS_HT_BLOCK > 1ll << ROWTRANSFORM_TRANSFORM_BITS
-  #undef RESERVATION_TRANS_HT_BLOCK
-  #define RESERVATION_TRANS_HT_BLOCK (1ll << ROWTRANSFORM_TRANSFORM_BITS)
-#endif
-
-static inline hash_s_t reservation_trans_get_hash(fixed_cell_t transform[NUM_NORND_COLS], hash_s_t counter, hash_l_t* base_hash){
-  hash_l_t hash = 0;
-
-  for(int i = 0; i < NUM_NORND_COLS; i++){
-    hash_l_t it = transform[i] + counter;
-    it = (it * 0xB0000B) ^ ROT(it, 17);
-    hash = (hash * 0xB0000B) ^ ROT(hash, 17);
-    hash ^= (it * 0xB0000B) ^ ROT(it, 17);
-  }
-  hash = (hash * 0xB0000B) ^ ROT(hash, 17);
-
-  *base_hash = hash != 0 ? hash : 1; // ensure base_hash is 0 only when uninited
-  return (hash >> (64-ROWTRANSFORM_TRANSFORM_BITS)) ^ (hash & ((1ll << ROWTRANSFORM_TRANSFORM_BITS)-1));
-}
-
-static uint64_t reservation_trans_hash_requests;
-static uint64_t reservation_trans_hash_lookups;
-
-static hash_s_t reservation_trans_get_transform_hash(fixed_cell_t transform[NUM_NORND_COLS]){
-  reservation_trans_hash_requests++;
-  hash_s_t counter = 0;
-  while(1){
-    hash_l_t base_hash;
-    hash_s_t hash = reservation_trans_get_hash(transform, counter++, & base_hash);
-
-    for(int i = 0; i < RESERVATION_TRANS_HT_BLOCK; i++){
-      hash_s_t hash_it = (hash &~(RESERVATION_TRANS_HT_BLOCK-1)) | ((hash+i) & (RESERVATION_TRANS_HT_BLOCK-1));
-      reservation_trans_t* it = &reservation_trans[ hash_it ];
-      reservation_trans_hash_lookups++;
-      if(it->base_hash == 0){
-        reservation_trans_items++;
-        for(int i = 0; i < NUM_NORND_COLS; i++){
-          it->transform[i] = transform[i];
-        }
-        it->base_hash = base_hash;
-        return hash_it;
-      }
-
-      if(it->base_hash != base_hash) continue; // speed up
-      for(int i = 0; i < NUM_NORND_COLS; i++)
-        if(it->transform[i] != transform[i])
-          continue;
-
-      // implicit  if(it->transform == transform)
-      return hash_it;
-    }
-  }
+  hashSet_delete(htTran);
 }
 
 
@@ -100,77 +43,10 @@ static hash_s_t reservation_trans_get_transform_hash(fixed_cell_t transform[NUM_
 #define NUM_DIRECT_SUB_ROWS  (MAX_COEFF+1 + NUM_OUTS*D)
 
 typedef struct {
-  hash_l_t base_hash; // 0 for unused
+  hash_l_t hash; // mandatory here.
   hash_s_t transform_hash;
   hash_s_t direct_sub_row_hash[NUM_DIRECT_SUB_ROWS];
 } reservation_row_t;
-
-static reservation_row_t *reservation_row;
-static size_t reservation_row_items;
-
-static void __attribute__ ((constructor)) allocReservationRow(){
-  reservation_row = mem_calloc(sizeof(reservation_row_t), 1ll << ROWTRANSFORM_ROW_BITS, "reservation_row for rowTransform");
-}
-static void __attribute__ ((destructor)) freeReservationRow(){
-  mem_free(reservation_row);
-}
-
-#define ROT(x, pos) (((x) << (pos)) | ((x) >> (-(pos) & 63)))
-// must be pow2
-#define RESERVATION_ROW_HT_BLOCK 32
-
-#if RESERVATION_ROW_HT_BLOCK > 1ll << ROWTRANSFORM_ROW_BITS
-  #undef RESERVATION_ROW_HT_BLOCK
-  #define RESERVATION_ROW_HT_BLOCK (1ll << ROWTRANSFORM_ROW_BITS)
-#endif
-
-static inline hash_s_t reservation_row_get_hash(hash_s_t row_transform_hash, hash_s_t direct_sub_row_hash[NUM_DIRECT_SUB_ROWS], hash_s_t counter, hash_l_t* base_hash){
-  hash_l_t hash = row_transform_hash + counter;
-
-  for(int i = 0; i < NUM_DIRECT_SUB_ROWS; i++){
-    hash ^= direct_sub_row_hash[i];
-    hash += ROT(hash, ROWTRANSFORM_ROW_BITS);
-  }
-  hash = (hash * 0xB0000B) ^ ROT(hash, 17);
-
-  *base_hash = hash != 0 ? hash : 1; // ensure base_hash is 0 only when uninited
-  return (hash >> (64-ROWTRANSFORM_ROW_BITS)) ^ (hash & ((1ll << ROWTRANSFORM_ROW_BITS)-1));
-}
-
-static uint64_t reservation_row_hash_requests;
-static uint64_t reservation_row_hash_lookups;
-
-static hash_s_t reservation_row_get_transform_hash(hash_s_t row_transform_hash, hash_s_t direct_sub_row_hash[NUM_DIRECT_SUB_ROWS]){
-  reservation_row_hash_requests++;
-  hash_s_t counter = 0;
-  while(1){
-    hash_l_t base_hash;
-    hash_s_t hash = reservation_row_get_hash(row_transform_hash, direct_sub_row_hash, counter++, & base_hash);
-
-    for(int i = 0; i < RESERVATION_ROW_HT_BLOCK; i++){
-      hash_s_t hash_it = (hash &~(RESERVATION_ROW_HT_BLOCK-1)) | ((hash+i) & (RESERVATION_ROW_HT_BLOCK-1));
-      reservation_row_t* it = &reservation_row[ hash_it ];
-      reservation_row_hash_lookups++;
-      if(it->base_hash == 0){
-        reservation_row_items++;
-        for(int i = 0; i < NUM_DIRECT_SUB_ROWS; i++){
-          it->direct_sub_row_hash[i] = direct_sub_row_hash[i];
-        }
-        it->transform_hash = row_transform_hash;
-        it->base_hash = base_hash;
-        return hash_it;
-      }
-
-      if(it->base_hash != base_hash || it->transform_hash != row_transform_hash) continue; // speed up
-      for(int i = 0; i < NUM_DIRECT_SUB_ROWS; i++)
-        if(it->direct_sub_row_hash[i] != direct_sub_row_hash[i])
-          continue;
-
-      // implicit  if(it->transform == transform)
-      return hash_it;
-    }
-  }
-}
 
 
 //-- assoc
@@ -184,6 +60,8 @@ typedef struct {
 
 static size_t assoc_items;
 static assoc_t *assoc;
+static hash_s_t row_hash_size;
+static bool finalized;
 
 static void __attribute__ ((constructor)) allocAssoc(){
   assoc = mem_calloc(sizeof(assoc_t), 1ll << ROWTRANSFORM_ASSOC_BITS, "assoc for rowTransform");
@@ -195,6 +73,8 @@ static void __attribute__ ((constructor)) allocAssoc(){
 static void __attribute__ ((destructor)) freeAssoc(){
   mem_free(assoc);
 }
+
+
 
 // must be pow2
 #define ASSOC_HT_BLOCK 32
@@ -214,82 +94,151 @@ static inline hash_s_t assoc_get_hash(row_t index, hash_s_t counter){
     hash = (hash * 0xB0000B) ^ ROT(hash, 17);
   }
 
-  return (hash >> (64-ROWTRANSFORM_ASSOC_BITS)) ^ (hash & ((1ll << ROWTRANSFORM_ASSOC_BITS)-1));
+  hash_s_t r = 0;
+  for(int i = 0; i < 64 ; i+=ROWTRANSFORM_ASSOC_BITS)
+    r ^= (hash >> i) & ((1ll << ROWTRANSFORM_ASSOC_BITS) -1);
+  return r;
 }
 
 static uint64_t assoc_hash_requests;
 static uint64_t assoc_hash_lookups;
 
 
-//-- rowTransform_transform_hash
-
-static hash_s_t rowTransform_assoc_hash(row_t index){
-  assoc_hash_requests++;
-  hash_s_t counter = 0;
-  while(1){
-    hash_s_t hash  = assoc_get_hash(index, counter++);
-    for(int i = 0; i < ASSOC_HT_BLOCK; i++){
-      hash_s_t hash_it = (hash &~(ASSOC_HT_BLOCK-1)) | ((hash+i) & (ASSOC_HT_BLOCK-1));
-      assoc_t *it = & assoc[ hash_it ];
-      assoc_hash_lookups++;
-      if(it->transform_hash == ~(hash_s_t)0) FAIL("rowTransform: missing!")
-
-      if(row_eq(it->index, index))
-        return hash_it;
-    }
-  }
-}
-
-hash_s_t rowTransform_transform_hash(row_t index){
-  return assoc[rowTransform_assoc_hash(index)].transform_hash;
-}
-
-//-- rowTransform_row_hash
-
-hash_s_t rowTransform_row_hash(row_t index){
-  return assoc[rowTransform_assoc_hash(index)].row_hash;
-}
-
 //-- rowTransform_insert
 
-void rowTransform_insert(row_t index, fixed_cell_t transform[NUM_NORND_COLS]){
+static hash_s_t rowTransform_find(row_t index){
   assoc_hash_requests++;
   hash_s_t counter = 0;
+
   while(1){
+if(counter == 10) printf("DBG: rowTransform: find: counter to 10\n");
+if(counter == 100) printf("DBG: rowTransform: find: counter to 100\n");
+
     hash_s_t hash = assoc_get_hash(index, counter++);
     for(int i = 0; i < ASSOC_HT_BLOCK; i++){
       hash_s_t hash_it = (hash &~(ASSOC_HT_BLOCK-1)) | ((hash+i) & (ASSOC_HT_BLOCK-1));
       assoc_t *it = &assoc[ hash_it ];
       assoc_hash_lookups++;
-      if(it->transform_hash == ~(hash_s_t)0){
-        assoc_items++;
-        it->index = index;
-
-        hash_s_t direct_sub_row_hash[NUM_DIRECT_SUB_ROWS];
-        int i = 0;
-        ITERATE_OVER_DIRECT_SUB_ROWS(index, sub, {
-          if(i >= NUM_DIRECT_SUB_ROWS) FAIL("rowTransform: too many sub rows!")
-          direct_sub_row_hash[i++] = rowTransform_row_hash(sub);
-        })
-        for(; i < NUM_DIRECT_SUB_ROWS; i++)
-          direct_sub_row_hash[i] = ~(hash_s_t)0;
-
-        it->transform_hash = reservation_trans_get_transform_hash(transform);
-        it->row_hash = reservation_row_get_transform_hash(it->transform_hash, direct_sub_row_hash);
-        return;
-      }
-
-      if(row_eq(it->index, index)) FAIL("rowTransform: Asking to insert a row that is already present!")
+      if(it->transform_hash == ~(hash_s_t)0 || row_eq(it->index, index))
+        return hash_it;
     }
   }
 }
 
+void rowTransform_insert(row_t index, fixed_cell_t transform[NUM_NORND_COLS]){
+  if(finalized) FAIL("rowTransform: Asking to insert a row after finalization!")
+
+  assoc_t *it = & assoc[rowTransform_find(index)];
+  if(it->transform_hash != ~(hash_s_t)0)
+    FAIL("rowTransform: Asking to insert a row that is already present!\n")
+  assoc_items++;
+  it->index = index;
+
+  reservation_tran_t key;
+  memset(&key, 0, sizeof(reservation_tran_t));
+  memcpy(key.transform, transform, sizeof(fixed_cell_t) * NUM_NORND_COLS);
+
+  if(!hashSet_tryAdd(htTran, &key, &it->transform_hash))
+    FAIL("rowTransform: couldn't add a row to htTran! fill=%f, conflictRate=%f\n", hashSet_dbg_fill(htTran), hashSet_dbg_hashConflictRate(htTran));
+}
+
+//-- rowTransform_finalizze
+
+static hash_s_t rowTransform_assoc_hash(row_t index){
+  hash_s_t it = rowTransform_find(index);
+  if(assoc[it].transform_hash == ~(hash_s_t)0)
+    FAIL("rowTransform: Asking to get a missing row!\n")
+  return it;
+}
+
+static bool rowTransform_finalizze__tryWithSet(void){
+  hashSet_t htRow = hashSet_new(ROWTRANSFORM_ASSOC_BITS, sizeof(reservation_row_t), "htRow for rowTransform");
+
+  row_t row = row_first();
+  do{
+    assoc_t *it = & assoc[rowTransform_assoc_hash(row)];
+
+    reservation_row_t key;
+    memset(&key, 0, sizeof(reservation_row_t));
+    key.transform_hash = it->transform_hash;
+    int i = 0;
+    ITERATE_OVER_DIRECT_SUB_ROWS(row, sub, {
+      key.direct_sub_row_hash[i++] = assoc[rowTransform_assoc_hash(sub)].row_hash;
+    })
+
+    if(!hashSet_tryAdd(htRow, &key, &it->row_hash)){ // fail
+      hashSet_delete(htRow);
+      return 0;
+    }
+  }while(row_tryNextProbeAndOut(& row));
+
+  row_hash_size = htRow->items;
+
+  hashSet_delete(htRow);
+  return 1;
+}
+
+static void rowTransform_finalizze__compact(void){
+  hash_s_t count = 0;
+
+  hash_s_t *pos_plus1 = mem_calloc(sizeof(hash_s_t), 1ll<<ROWTRANSFORM_ASSOC_BITS, "htRow for rowTransform");
+  for(hash_s_t i = 0; i < 1ll<<ROWTRANSFORM_ASSOC_BITS; i++){
+    assoc_t *it = & assoc[i];
+    if(it->row_hash != ~(hash_s_t)0){
+      if(pos_plus1[it->row_hash] == 0){
+        pos_plus1[it->row_hash] = ++count;
+      }
+      it->row_hash = pos_plus1[it->row_hash]-1;
+    }
+  }
+
+  if(count != row_hash_size) FAIL("rowTransform: size of the hash is wrong! count=%d, size=%d\n", count, row_hash_size)
+  mem_free(pos_plus1);
+}
+
+
+void rowTransform_finalizze(void){
+  if(finalized) FAIL("rowTransform: Asking to finalize after finalization!\n")
+
+  if(rowTransform_finalizze__tryWithSet()){
+    rowTransform_finalizze__compact();
+    finalized = 1;
+    return;
+  }
+
+  for(hash_s_t i = 0; i < 1ll<<ROWTRANSFORM_ASSOC_BITS; i++)
+    assoc[i].row_hash = i;
+  row_hash_size = 1ll<<ROWTRANSFORM_ASSOC_BITS;
+  finalized = 1;
+}
+
+
+//-- rowTransform_transform_hash
+
+hash_s_t rowTransform_transform_hash(row_t index){
+  if(!finalized) FAIL("rowTransform: Asking to obtain an hash before finalization!\n")
+  return assoc[rowTransform_assoc_hash(index)].transform_hash;
+}
+
+//-- rowTransform_row_hash_size
+
+hash_s_t rowTransform_row_hash_size(void){
+  if(!finalized) FAIL("rowTransform: Asking to obtain the size of row's hashes before finalization!\n")
+  return row_hash_size;
+}
+
+//-- rowTransform_row_hash
+
+hash_s_t rowTransform_row_hash(row_t index){
+  if(!finalized) FAIL("rowTransform: Asking to obtain an hash before finalization!\n")
+  return assoc[rowTransform_assoc_hash(index)].row_hash;
+}
 
 //-- rowTransform_get
 
-
 void rowTransform_get(row_t row, fixed_cell_t ret_transform[NUM_NORND_COLS]){
-  reservation_trans_t *elem = & reservation_trans[rowTransform_transform_hash(row)];
+  if(!finalized) FAIL("rowTransform: Asking to obtain the transform before finalization!\n")
+  reservation_tran_t *elem = hashSet_getKey(htTran, rowTransform_transform_hash(row));
 
   for(int i = 0; i < NUM_NORND_COLS; i++){
     ret_transform[i] = elem->transform[i];
@@ -299,19 +248,11 @@ void rowTransform_get(row_t row, fixed_cell_t ret_transform[NUM_NORND_COLS]){
 
 
 
+double rowTransform_transform_dbg_fill(void){ return hashSet_dbg_fill(htTran); }
+double rowTransform_transform_dbg_hashConflictRate(void){ return hashSet_dbg_hashConflictRate(htTran); }
 
-
-double rowTransform_transform_dbg_fill(void){
-  return ((double) reservation_trans_items) / (1ll << ROWTRANSFORM_TRANSFORM_BITS);
-}
-double rowTransform_transform_dbg_hashConflictRate(void){
-  return ((double) reservation_trans_hash_lookups - reservation_trans_hash_requests) / reservation_trans_hash_requests;
-}
-double rowTransform_row_dbg_fill(void){
-  return ((double) reservation_row_items) / (1ll << ROWTRANSFORM_ROW_BITS);
-}
-double rowTransform_row_dbg_hashConflictRate(void){
-  return ((double) reservation_row_hash_lookups - reservation_row_hash_requests) / reservation_row_hash_requests;
+double rowTransform_row_dbg_allocRate(void){
+  return ((double) row_hash_size) / (1ll << ROWTRANSFORM_ASSOC_BITS);
 }
 double rowTransform_assoc_dbg_fill(void){
   return ((double) assoc_items) / (1ll << ROWTRANSFORM_ASSOC_BITS);

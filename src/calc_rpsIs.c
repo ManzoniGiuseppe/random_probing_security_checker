@@ -4,14 +4,17 @@
 #include "probeComb.h"
 #include "rowTransform.h"
 
-
 #define  UNINIT     0
 #define  ALL_0      1
 #define  ANY_NOT_0  2
 
 
+static uint8_t *rowData;
+static uint8_t *probeData;
+static hash_s_t row_size;
+static hash_s_t probe_size;
 
-static bool rowData_anyNot0(uint8_t *rowData, row_t row){
+static bool rowData_anyNot0(row_t row){
   uint8_t *it = & rowData[rowTransform_transform_hash(row)];
   if(*it) return *it == ANY_NOT_0; // inited
 
@@ -28,18 +31,18 @@ static bool rowData_anyNot0(uint8_t *rowData, row_t row){
   return 0;
 }
 
-static bool probeData_anyNot0(uint8_t* probeData, uint8_t *rowData, row_t row){
+static bool probeData_anyNot0(row_t row){
   uint8_t *it = & probeData[rowTransform_row_hash(row)];
   if(*it) return *it == ANY_NOT_0; // inited
 
-  if(rowData_anyNot0(rowData, row)){
+  if(rowData_anyNot0(row)){
     *it = ANY_NOT_0;
     return 1;
   }
 
   /* check if any of the direct sub-probes has the 1, if so then this is too */
   ITERATE_OVER_DIRECT_SUB_ROWS(row, sub, {
-    if(probeData_anyNot0(probeData, rowData, sub)){
+    if(probeData_anyNot0(sub)){
       *it = ANY_NOT_0;
       return 1;
     }
@@ -51,16 +54,19 @@ static bool probeData_anyNot0(uint8_t* probeData, uint8_t *rowData, row_t row){
 
 
 coeff_t calc_rpsIs(void){
+  row_size = 1ll<<ROWTRANSFORM_TRANSFORM_BITS;
+  probe_size = rowTransform_row_hash_size();
+
   // to store if the wanted row as any != 0 in the appropriate columns.
-  uint8_t* rowData = mem_calloc(sizeof(uint8_t), 1ll << ROWTRANSFORM_TRANSFORM_BITS, "rowData for calc_rpsIs");
+  rowData = mem_calloc(sizeof(uint8_t), row_size, "rowData for calc_rpsIs");
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
-  uint8_t* probeData = mem_calloc(sizeof(uint8_t), 1ll << ROWTRANSFORM_ROW_BITS, "probeData for calc_rpsIs");
+  probeData = mem_calloc(sizeof(uint8_t), probe_size, "probeData for calc_rpsIs");
 
   coeff_t ret = coeff_zero();
   row_t row = row_first();
   do{
-    bool is = probeData_anyNot0(probeData, rowData, row);
+    bool is = probeData_anyNot0(row);
     if(is != 0){
       ret = coeff_add(ret, calcUtils_totProbeMulteplicity(row));
     }

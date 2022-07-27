@@ -23,6 +23,7 @@ typedef int32_t fixed_cell_t;  // fixed point notation 1.NUM_TOT_INS  // cell of
 // useful def
 #define LEAD_1(x) (63 - __builtin_clzll((x)))
 #define TAIL_1(x) LEAD_1((x)&-(x))
+#define ROT(x, pos) (((x) << (pos)) | ((x) >> (-(pos) & 63)))
 
 #define ABS(x)    ((x) >= 0 ? (x) : -(x))
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
