@@ -145,10 +145,10 @@ cat gadget.c
 # compile
 souces="gadget $(ls *.c | sed 's/.c$//')"
 for name in $souces ; do
-  gcc -c -O3 -Wall $gcc_flags_macro ${name}.c -o ${name}.o || exit 1
+  gcc -c -O3 -flto -march=native -mtune=native -Wall -Wextra $gcc_flags_macro ${name}.c -o ${name}.o || exit 1
 done
 
-gcc -O3 -Wall *.o -o executable
+gcc -O3 -flto -march=native -mtune=native -fwhole-program -Wall -Wextra *.o -o executable
 
 echo "Compiled!"
 

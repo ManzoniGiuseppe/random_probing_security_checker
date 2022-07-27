@@ -1,7 +1,7 @@
 #include <stdlib.h>
 
 #include "calc.h"
-#include "row.h"
+#include "calcUtils.h"
 #include "mem.h"
 #include "probeComb.h"
 #include "rowTransform.h"
@@ -21,17 +21,6 @@
 // NOTE: assigning from fixed_cell_t to fixed_sum_t implies a /2
 
 
-// with D=3, from  [0100] -> [000'111'000'000]. from the underlinying wire to all its shares.
-static col_t intExpandByD(col_t val){
-  if(val == 0) return 0;
-  col_t bit = (1ll<<D)-1;
-  col_t ret = 0;
-  for(shift_t i = 0 ; i <= LEAD_1(val); i++){ // val==0 has been handled.
-    ret |= (((val >> i) & 1) * bit) << (i*D);
-  }
-  return ret;
-}
-
 static fixed_sum_t rowData_sumAbs(fixed_sum_t *rowData, row_t row){
   fixed_sum_t *it = & rowData[rowTransform_transform_hash(row)];
   if(*it != UNINIT_SUM) return *it; // inited
@@ -41,7 +30,7 @@ static fixed_sum_t rowData_sumAbs(fixed_sum_t *rowData, row_t row){
 
   *it = 0;
   for(int i = 1; i < (1ll<<NUM_INS) && *it < MAX_FIXED_SUM; i++){
-    *it += llabs(transform[intExpandByD(i)]);
+    *it += llabs(transform[calcUtils_intExpandByD(i)]);
   }
   *it = FIXED_SUM_NORMALIZE(*it);
   return *it;

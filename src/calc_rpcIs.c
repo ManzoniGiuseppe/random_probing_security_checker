@@ -1,5 +1,5 @@
 #include "calc.h"
-#include "row.h"
+#include "calcUtils.h"
 #include "mem.h"
 #include "probeComb.h"
 #include "rowTransform.h"
@@ -52,20 +52,9 @@ static bool probeData_anyNot0(uint8_t* probeData, uint8_t *rowData, row_t row, c
   return 0;
 }
 
-static shift_t maxShares_in(col_t value){
-  shift_t ret = 0;
-  col_t mask = (1ll << D)-1;
-  for(int i = 0; i < NUM_INS; i++){
-    int v = __builtin_popcountll(value & (mask << (i*D)));
-    ret = v > ret ? v : ret;
-  }
-  return ret;
-}
-
-
 static bool probeData_is(uint8_t *probeData, uint8_t *rowData, row_t row){
   for(col_t ii = 0; ii < NUM_NORND_COLS; ii++){
-    if(maxShares_in(ii) <= T && !probeData_anyNot0(probeData, rowData, row, ii)){
+    if(calcUtils_maxSharesIn(ii) <= T && !probeData_anyNot0(probeData, rowData, row, ii)){
       return 0; // all must be true
     }
   }
@@ -83,8 +72,6 @@ coeff_t calc_rpcIs(void){
   uint8_t* probeData = mem_calloc(sizeof(uint8_t), (1ll << ROWTRANSFORM_ROW_BITS) * NUM_NORND_COLS, "probeData for calc_rpcIs");
 
   coeff_t ret = coeff_zero();
-
-
   row_t output = row_first();
   do{
     if(row_maxShares(output) != T) continue; // the max will be in the ones with most outputs

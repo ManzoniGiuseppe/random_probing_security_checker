@@ -2,7 +2,7 @@
 #include <stdlib.h>
 
 #include "calc.h"
-#include "row.h"
+#include "calcUtils.h"
 #include "mem.h"
 #include "probeComb.h"
 #include "rowTransform.h"
@@ -78,22 +78,12 @@ static fixed_sum_t probeData_sumAbs(fixed_sum_t *probeData, fixed_sum_t *rowData
   return *it;
 }
 
-static shift_t maxShares_in(col_t value){
-  shift_t ret = 0;
-  col_t mask = (1ll << D)-1;
-  for(int i = 0; i < NUM_INS; i++){
-    int v = __builtin_popcountll(value & (mask << (i*D)));
-    ret = v > ret ? v : ret;
-  }
-  return ret;
-}
-
 static fixed_sum_t probeData_min(fixed_sum_t *probeData, fixed_sum_t *rowData, probeComb_t probes, row_t output){
   row_t row = probeComb_getHighestRow(probes, output);
 
   fixed_sum_t ret = MAX_FIXED_SUM;
   for(col_t ii = 0; ii < NUM_NORND_COLS && ret != 0; ii++){
-    if(maxShares_in(ii) <= T){
+    if(calcUtils_maxSharesIn(ii) <= T){
       fixed_sum_t val = probeData_sumAbs(probeData, rowData, row, ii);
       ret = MIN(ret, val);
     }
@@ -114,14 +104,14 @@ coeff_t calc_rpcSum(void){
   fixed_sum_t* rowData = mem_calloc(sizeof(fixed_sum_t), (1ll << ROWTRANSFORM_TRANSFORM_BITS) * NUM_NORND_COLS, "rowData for calc_rpcSum");
   for(hash_s_t i = 0; i < 1ll << ROWTRANSFORM_TRANSFORM_BITS; i++)
     for(col_t ii = 0; ii < NUM_NORND_COLS; ii++)
-      if(maxShares_in(ii) <= T)
+      if(calcUtils_maxSharesIn(ii) <= T)
         *data_get(rowData, i, ii, ROWTRANSFORM_TRANSFORM_BITS) = UNINIT_SUM;
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
   fixed_sum_t* probeData = mem_calloc(sizeof(fixed_sum_t), (1ll << ROWTRANSFORM_ROW_BITS) * NUM_NORND_COLS, "probeData for calc_rpcSum");
   for(hash_s_t i = 0; i < 1ll << ROWTRANSFORM_ROW_BITS; i++)
     for(col_t ii = 0; ii < NUM_NORND_COLS; ii++)
-      if(maxShares_in(ii) <= T)
+      if(calcUtils_maxSharesIn(ii) <= T)
         *data_get(probeData, i, ii, ROWTRANSFORM_ROW_BITS) = UNINIT_SUM;
 
   coeff_t ret = coeff_zero();

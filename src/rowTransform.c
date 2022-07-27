@@ -124,7 +124,7 @@ static void __attribute__ ((destructor)) freeReservationRow(){
   #define RESERVATION_ROW_HT_BLOCK (1ll << ROWTRANSFORM_ROW_BITS)
 #endif
 
-static inline hash_s_t reservation_row_get_hash(row_t row, hash_s_t row_transform_hash, hash_s_t direct_sub_row_hash[NUM_DIRECT_SUB_ROWS], hash_s_t counter, hash_l_t* base_hash){
+static inline hash_s_t reservation_row_get_hash(hash_s_t row_transform_hash, hash_s_t direct_sub_row_hash[NUM_DIRECT_SUB_ROWS], hash_s_t counter, hash_l_t* base_hash){
   hash_l_t hash = row_transform_hash + counter;
 
   for(int i = 0; i < NUM_DIRECT_SUB_ROWS; i++){
@@ -140,12 +140,12 @@ static inline hash_s_t reservation_row_get_hash(row_t row, hash_s_t row_transfor
 static uint64_t reservation_row_hash_requests;
 static uint64_t reservation_row_hash_lookups;
 
-static hash_s_t reservation_row_get_transform_hash(row_t row, hash_s_t row_transform_hash, hash_s_t direct_sub_row_hash[NUM_DIRECT_SUB_ROWS]){
+static hash_s_t reservation_row_get_transform_hash(hash_s_t row_transform_hash, hash_s_t direct_sub_row_hash[NUM_DIRECT_SUB_ROWS]){
   reservation_row_hash_requests++;
   hash_s_t counter = 0;
   while(1){
     hash_l_t base_hash;
-    hash_s_t hash = reservation_row_get_hash(row, row_transform_hash, direct_sub_row_hash, counter++, & base_hash);
+    hash_s_t hash = reservation_row_get_hash(row_transform_hash, direct_sub_row_hash, counter++, & base_hash);
 
     for(int i = 0; i < RESERVATION_ROW_HT_BLOCK; i++){
       hash_s_t hash_it = (hash &~(RESERVATION_ROW_HT_BLOCK-1)) | ((hash+i) & (RESERVATION_ROW_HT_BLOCK-1));
@@ -188,8 +188,8 @@ static assoc_t *assoc;
 static void __attribute__ ((constructor)) allocAssoc(){
   assoc = mem_calloc(sizeof(assoc_t), 1ll << ROWTRANSFORM_ASSOC_BITS, "assoc for rowTransform");
   for(uint64_t i = 0; i < 1ll << ROWTRANSFORM_ASSOC_BITS; i++){
-    assoc[i].transform_hash = (hash_s_t) -1;
-    assoc[i].row_hash = (hash_s_t) -1;
+    assoc[i].transform_hash = ~(hash_s_t)0;
+    assoc[i].row_hash = ~(hash_s_t)0;
   }
 }
 static void __attribute__ ((destructor)) freeAssoc(){
@@ -232,7 +232,7 @@ static hash_s_t rowTransform_assoc_hash(row_t index){
       hash_s_t hash_it = (hash &~(ASSOC_HT_BLOCK-1)) | ((hash+i) & (ASSOC_HT_BLOCK-1));
       assoc_t *it = & assoc[ hash_it ];
       assoc_hash_lookups++;
-      if(it->transform_hash == (uint64_t) -1) FAIL("rowTransform: missing!")
+      if(it->transform_hash == ~(hash_s_t)0) FAIL("rowTransform: missing!")
 
       if(row_eq(it->index, index))
         return hash_it;
@@ -261,7 +261,7 @@ void rowTransform_insert(row_t index, fixed_cell_t transform[NUM_NORND_COLS]){
       hash_s_t hash_it = (hash &~(ASSOC_HT_BLOCK-1)) | ((hash+i) & (ASSOC_HT_BLOCK-1));
       assoc_t *it = &assoc[ hash_it ];
       assoc_hash_lookups++;
-      if(it->transform_hash == (hash_s_t) -1){
+      if(it->transform_hash == ~(hash_s_t)0){
         assoc_items++;
         it->index = index;
 
@@ -272,10 +272,10 @@ void rowTransform_insert(row_t index, fixed_cell_t transform[NUM_NORND_COLS]){
           direct_sub_row_hash[i++] = rowTransform_row_hash(sub);
         })
         for(; i < NUM_DIRECT_SUB_ROWS; i++)
-          direct_sub_row_hash[i] = (hash_s_t) -1;
+          direct_sub_row_hash[i] = ~(hash_s_t)0;
 
         it->transform_hash = reservation_trans_get_transform_hash(transform);
-        it->row_hash = reservation_row_get_transform_hash(index, it->transform_hash, direct_sub_row_hash);
+        it->row_hash = reservation_row_get_transform_hash(it->transform_hash, direct_sub_row_hash);
         return;
       }
 

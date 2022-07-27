@@ -84,3 +84,9 @@ coeff_t coeff_add(coeff_t v1, coeff_t v2){
   ret.approximated = v1.approximated || v2.approximated;
   return ret;
 }
+
+coeff_t coeff_times(coeff_t v1, double c){
+  for(shift_t i = 0; i <= MAX_COEFF; i++)
+    v1.values[i] *= c;
+  return v1;
+}

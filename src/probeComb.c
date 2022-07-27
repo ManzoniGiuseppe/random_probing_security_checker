@@ -100,7 +100,7 @@ void probeComb_firstWhoseImageIs(row_t highest_row, probeComb_t ret_comb, shift_
   if(*ret_count > MAX_COEFF) FAIL("probeComb: more probes than MAX_COEFF")
 }
 
-bool probeComb_nextWhoseImageIs(row_t highest_row, probeComb_t curr_comb, shift_t *curr_count){
+bool probeComb_nextWithSameImage(probeComb_t curr_comb, shift_t *curr_count){
   shift_t to_inc;
   if(*curr_count < MAX_COEFF) to_inc = 0; // if there are probes left, increment normally
   else { // already hit the maximum.

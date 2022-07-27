@@ -40,10 +40,10 @@
 
 
 
-bdd_t bdd_op_not(void* storage, bdd_t val){
+bdd_t bdd_op_not(__attribute__((unused)) void* storage, bdd_t val){
   return bdd_op_neg(val);
 }
-bdd_t bdd_val_const(void* storage, bool val){
+bdd_t bdd_val_const(__attribute__((unused)) void* storage, bool val){
   return val ? BDD_TRUE : BDD_FALSE;
 }
 
@@ -367,7 +367,7 @@ bdd_t bdd_op_xor(void *storage, bdd_t val0, bdd_t val1){
 
 static fixed_cell_t bdd_op_getSumRNDs__sum(bdd_storage_t *s, bdd_t val){ // do the sum recursively
   if(bdd_is_negated(val)) return -bdd_op_getSumRNDs__sum(s, bdd_op_neg(val));
-  if(!bdd_is_node(val)) return -1ll << NUM_RANDOMS;
+  if(!bdd_is_node(val)) return -(1ll << NUM_RANDOMS);
 
   uint64_t value = 0;
   if(!cache_contains(s, CACHE_OPTYPE__SUM, val, val)){
@@ -393,7 +393,7 @@ static void bdd_op_getSumRNDs__i(bdd_storage_t *s, bdd_t val, shift_t ins_missin
   bdd_node_t a;
   if(!bdd_is_node(val)) {
     a.v[0] = a.v[1] = val;
-  } else if(bdd_get_input(val) != NUM_INS*D-ins_missing){ // the two a.v are the same.
+  } else if(bdd_get_input(val) != (uint64_t) NUM_INS*D-ins_missing){ // the two a.v are the same.
     a.v[0] = a.v[1] = val;
   } else {
     a = bdd_get_node(s, val);

@@ -12,6 +12,7 @@ typedef struct {
 
 coeff_t coeff_zero(void);
 coeff_t coeff_add(coeff_t v1, coeff_t v2);
+coeff_t coeff_times(coeff_t v1, double c);
 
 coeff_t coeff_cmp(bool want_max, coeff_t v1, coeff_t v2, bool *ret_used1, bool *ret_used2);
 #define coeff_max_and_usage(v1, v2, ret_used_v1, ret_used_v2)  (coeff_cmp(1, (v1), (v2), (ret_used_v1), (ret_used_v2)))

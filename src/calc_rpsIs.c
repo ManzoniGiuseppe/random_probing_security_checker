@@ -1,5 +1,5 @@
 #include "calc.h"
-#include "row.h"
+#include "calcUtils.h"
 #include "mem.h"
 #include "probeComb.h"
 #include "rowTransform.h"
@@ -11,18 +11,6 @@
 
 
 
-// with D=3, from  [0100] -> [000'111'000'000]. from the underlinying wire to all its shares.
-static col_t intExpandByD(col_t val){
-  if(val == 0) return 0;
-  col_t bit = (1ll<<D)-1;
-  col_t ret = 0;
-  for(shift_t i = 0 ; i <= LEAD_1(val); i++){ // val==0 has been handled.
-    ret |= (((val >> i) & 1) * bit) << (i*D);
-  }
-  return ret;
-}
-
-
 static bool rowData_anyNot0(uint8_t *rowData, row_t row){
   uint8_t *it = & rowData[rowTransform_transform_hash(row)];
   if(*it) return *it == ANY_NOT_0; // inited
@@ -31,7 +19,7 @@ static bool rowData_anyNot0(uint8_t *rowData, row_t row){
   rowTransform_get(row, transform);
 
   for(int i = 1; i < (1ll<<NUM_INS); i++){
-    if(transform[intExpandByD(i)] != 0){
+    if(transform[calcUtils_intExpandByD(i)] != 0){
       *it = ANY_NOT_0;
       return 1;
     }
@@ -74,10 +62,7 @@ coeff_t calc_rpsIs(void){
   do{
     bool is = probeData_anyNot0(probeData, rowData, row);
     if(is != 0){
-      ITERATE_OVER_PROBES_WHOSE_IMAGE_IS(row, probeComb, coeffNum, {
-        double mul = probeComb_getProbesMulteplicity(probeComb);
-        ret.values[coeffNum] += mul;
-      })
+      ret = coeff_add(ret, calcUtils_totProbeMulteplicity(row));
     }
   }while(row_tryNextProbe(& row));
 
