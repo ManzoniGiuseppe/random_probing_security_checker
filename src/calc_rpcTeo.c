@@ -92,7 +92,7 @@ static coeff_t toBeSummed(row_t highest_row, col_t ii, col_t x){
   return coeff_times(calcUtils_totProbeMulteplicity(highest_row), min);
 }
 
-static void maxIn__givenProbe(row_t highest_row, coeff_t prev_lowest_curr[NUM_NORND_COLS], coeff_t *ret_lowest_max, coeff_t ret_lowest_curr[NUM_NORND_COLS]){
+static void minIn__givenProbe(row_t highest_row, coeff_t prev_lowest_curr[NUM_NORND_COLS], coeff_t *ret_lowest_max, coeff_t ret_lowest_curr[NUM_NORND_COLS]){
   // ii = 0, to init the variables of the cycle
   *ret_lowest_max = coeff_zero();
   for(col_t x = 0; x < NUM_NORND_COLS; x++){
@@ -137,7 +137,7 @@ static coeff_t minIn(row_t out){
     coeff_t lowest_max;
     coeff_t lowest_curr[NUM_NORND_COLS]; // over x
 
-    maxIn__givenProbe(row_or(probes, out), prev_lowest_curr, &lowest_max, lowest_curr);
+    minIn__givenProbe(row_or(probes, out), prev_lowest_curr, &lowest_max, lowest_curr);
 
     prev_lowest_max = lowest_max;
     for(col_t x = 0; x < NUM_NORND_COLS; x++)
