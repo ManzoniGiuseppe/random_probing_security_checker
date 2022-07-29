@@ -54,7 +54,7 @@ static bool probeData_anyNot0(row_t row){
 
 
 coeff_t calc_rpsIs(void){
-  row_size = 1ll<<ROWTRANSFORM_TRANSFORM_BITS;
+  row_size = rowTransform_transform_hash_size();
   probe_size = rowTransform_row_hash_size();
 
   // to store if the wanted row as any != 0 in the appropriate columns.

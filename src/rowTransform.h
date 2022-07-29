@@ -11,6 +11,7 @@ void rowTransform_insert(row_t row, fixed_cell_t transform[NUM_NORND_COLS]);
 void rowTransform_finalizze(void);
 
 void rowTransform_get(row_t row, fixed_cell_t ret_transform[NUM_NORND_COLS]);
+hash_s_t rowTransform_transform_hash_size(void);
 hash_s_t rowTransform_transform_hash(row_t row);
 hash_s_t rowTransform_row_hash_size(void);
 hash_s_t rowTransform_row_hash(row_t row);

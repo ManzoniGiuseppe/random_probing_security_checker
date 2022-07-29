@@ -8,7 +8,7 @@
 
 
 double hashSet_dbg_fill(hashSet_t ht){
-  return ht->items / (double) ht->size;
+  return ht->items / (double) (1ll << ht->size);
 }
 double hashSet_dbg_hashConflictRate(hashSet_t ht){
   return (ht->hash_lookups - ht->hash_requests) / (double) ht->hash_requests;
@@ -114,7 +114,7 @@ static int hashSet_find(hashSet_t ht, void *key, hash_s_t *hash_elem){
     }
   }
 
-  printf("hashSet: %s: couldn't find a match or an empty place!\n", ht->of_what);
+  printf("hashSet: %s: couldn't find a match or an empty place! fill=%d%%, conflictRate=%d%%\n", ht->of_what, (int) (hashSet_dbg_fill(ht) * 100), (int) (hashSet_dbg_hashConflictRate(ht) * 100));
   return -1;
 }
 
@@ -148,6 +148,11 @@ hash_s_t hashSet_getCurrentPos(hashSet_t ht, void *key){
 
 void* hashSet_getKey(hashSet_t ht, hash_s_t pos){
   return ht->table + pos * ht->elem_size;
+}
+
+bool hashSet_validPos(hashSet_t ht, hash_s_t pos){
+  void* elem = hashSet_getKey(ht, pos);
+  return *(hash_l_t*) elem != 0; // struct has the same pointer as its first element
 }
 
 bool hashSet_tryAdd(hashSet_t ht, void *key, hash_s_t *ret_pos){

@@ -29,8 +29,10 @@ typedef struct {
 
 static hashSet_t htTran;
 
+#define HTRAN_INITIAL_SIZE_BITS 10
+
 static void __attribute__ ((constructor)) allocReservationTran(){
-  htTran = hashSet_new(ROWTRANSFORM_TRANSFORM_BITS, sizeof(reservation_tran_t), "htTran for rowTransform");
+  htTran = hashSet_new(HTRAN_INITIAL_SIZE_BITS, sizeof(reservation_tran_t), "htTran for rowTransform");
 }
 static void __attribute__ ((destructor)) freeReservationTrans(){
   hashSet_delete(htTran);
@@ -125,8 +127,29 @@ if(counter == 100) printf("DBG: rowTransform: find: counter to 100\n");
   }
 }
 
+static void htTran_increaseSize(void){
+  hashSet_t htTran_new = hashSet_new(htTran->size + 1, sizeof(reservation_tran_t), "htTran for rowTransform");
+  hash_s_t *newPos = mem_calloc(sizeof(hash_s_t), 1ll << htTran->size, "htTran translator for rowTransform");
+
+  for(hash_s_t i = 0; i < 1ll<<htTran->size; i++)
+    if(hashSet_validPos(htTran, i))
+      if(!hashSet_tryAdd(htTran_new, hashSet_getKey(htTran, i), newPos + i))
+        FAIL("rowTransform: couldn't add a row to the htTran_new! fill=%f, conflictRate=%f\n", hashSet_dbg_fill(htTran_new), hashSet_dbg_hashConflictRate(htTran_new));
+
+  hashSet_delete(htTran);
+  htTran = htTran_new;
+
+  for(hash_s_t i = 0; i < 1ll<<ROWTRANSFORM_ASSOC_BITS; i++){
+    assoc_t *it = & assoc[i];
+    if(it->transform_hash != ~(hash_s_t)0)
+      it->transform_hash = newPos[it->transform_hash];
+  }
+
+  mem_free(newPos);
+}
+
 void rowTransform_insert(row_t index, fixed_cell_t transform[NUM_NORND_COLS]){
-  if(finalized) FAIL("rowTransform: Asking to insert a row after finalization!")
+  if(finalized) FAIL("rowTransform: Asking to insert a row after finalization!\n")
 
   assoc_t *it = & assoc[rowTransform_find(index)];
   if(it->transform_hash != ~(hash_s_t)0)
@@ -138,8 +161,13 @@ void rowTransform_insert(row_t index, fixed_cell_t transform[NUM_NORND_COLS]){
   memset(&key, 0, sizeof(reservation_tran_t));
   memcpy(key.transform, transform, sizeof(fixed_cell_t) * NUM_NORND_COLS);
 
-  if(!hashSet_tryAdd(htTran, &key, &it->transform_hash))
-    FAIL("rowTransform: couldn't add a row to htTran! fill=%f, conflictRate=%f\n", hashSet_dbg_fill(htTran), hashSet_dbg_hashConflictRate(htTran));
+  if(!hashSet_tryAdd(htTran, &key, &it->transform_hash)){
+    htTran_increaseSize();
+    printf("rowTransform: htTran resized.\n");
+    if(!hashSet_tryAdd(htTran, &key, &it->transform_hash)){
+      FAIL("rowTransform: couldn't add a row to htTran even after doubling the size! fill=%f, conflictRate=%f\n", hashSet_dbg_fill(htTran), hashSet_dbg_hashConflictRate(htTran));
+    }
+  }
 }
 
 //-- rowTransform_finalizze
@@ -218,6 +246,13 @@ void rowTransform_finalizze(void){
 hash_s_t rowTransform_transform_hash(row_t index){
   if(!finalized) FAIL("rowTransform: Asking to obtain an hash before finalization!\n")
   return assoc[rowTransform_assoc_hash(index)].transform_hash;
+}
+
+//-- rowTransform_transform_hash_size
+
+hash_s_t rowTransform_transform_hash_size(void){
+  if(!finalized) FAIL("rowTransform: Asking to obtain the size of transform's hashes before finalization!\n")
+  return 1ll << htTran->size;
 }
 
 //-- rowTransform_row_hash_size

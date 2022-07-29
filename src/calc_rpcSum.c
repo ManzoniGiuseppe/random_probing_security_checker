@@ -106,7 +106,7 @@ static fixed_sum_t probeData_min(probeComb_t probes, row_t output){
 }
 
 coeff_t calc_rpcSum(void){
-  row_size = 1ll<<ROWTRANSFORM_TRANSFORM_BITS;
+  row_size = rowTransform_transform_hash_size();
   probe_size = rowTransform_row_hash_size();
 
   // to store if the wanted row as any != 0 in the appropriate columns.

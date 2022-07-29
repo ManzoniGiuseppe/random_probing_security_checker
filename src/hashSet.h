@@ -31,11 +31,15 @@ bool hashSet_add(hashSet_t ht, void* key); // sets the hash field of key if != 0
 // returns the current hash. key must have been added already
 hash_s_t hashSet_getCurrentPos(hashSet_t ht, void* key); // sets the hash field of key if != 0.
 
+// return if that pos has a valid value
+bool hashSet_validPos(hashSet_t ht, hash_s_t pos);
+
 // returns the current hash. key must have been added already
-void* hashSet_getKey(hashSet_t ht, hash_s_t pos); // sets the hash field of key if != 0.
+void* hashSet_getKey(hashSet_t ht, hash_s_t pos);
 
 // like add, but succedes also if already presents. returns the pos in the param.
-bool hashSet_tryAdd(hashSet_t ht, void *key, hash_s_t *ret_pos);
+bool hashSet_tryAdd(hashSet_t ht, void *key, hash_s_t *ret_pos); // sets the hash field of key if != 0.
+
 
 
 double hashSet_dbg_fill(hashSet_t ht);
