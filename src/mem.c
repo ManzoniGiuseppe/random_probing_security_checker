@@ -4,7 +4,7 @@
 #include "mem.h"
 
 
-#define PRINT_MEM 0
+#define PRINT_MEM 1
 
 
 static uint64_t allocated;

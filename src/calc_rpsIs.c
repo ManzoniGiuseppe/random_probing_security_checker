@@ -11,8 +11,8 @@
 
 static uint8_t *rowData;
 static uint8_t *probeData;
-static hash_s_t row_size;
-static hash_s_t probe_size;
+static size_t row_size;
+static size_t probe_size;
 
 static bool rowData_anyNot0(row_t row){
   uint8_t *it = & rowData[rowTransform_transform_hash(row)];

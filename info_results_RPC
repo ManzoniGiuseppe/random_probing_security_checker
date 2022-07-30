@@ -121,14 +121,14 @@ gadgets/isw_mul_generator.py 3  (d=3, i=2, o=1, rnd=3, prob=27, mult_prob=57)
   vraps:     0.0      0.0      428.0      17351.0      327328.0      3948446.0                                                            14:05
   M0:        0.000000 0.000000 428.000000 17351.000000 327328.000000 3954080.000000 35738768.000000 263430852.000000 1651133549.000000     1:29
   Mgm:       0.000000 0.000000 426.500000 17339.500000 327328.000000 3954080.000000 35738768.000000 263430852.000000 1651133549.000000     1:32
-  Mteo:      [p^8-6 not enough memory; TODO p^7 segmentation fault, TODO why fewer elements than p^6]
+  Mteo:      [not enough memory]
   ironmask:   [seg fault]
 
 gadgets/isw_mul_generator.py 4  (d=4, i=2, o=1, rnd=6, prob=50, mult_prob=110)
   vraps:     0.0      0.0      1459.0      112820.0      4272809.0           12:40
   M0:        0.000000 0.000000 1459.000000 112820.000000 4271673.000000         14.6
   Mgm:       0.000000 0.000000 1458.500000 112799.000000 4271343.500000         15.1
-  Mteo:      [seg fault]
+  Mteo:      [not enough memory]
   ironmask:  [seg fault]
 
 gadgets/wrong_isw_mul_generator.py 2 (d=2, i=2, o=1, rnd=1, prob=11, mult_prob=21)
@@ -149,7 +149,7 @@ gadgets/wrong_isw_mul_generator.py 4 (d=4, i=2, o=1, rnd=6, prob=50, mult_prob=1
   vraps:     0.0      0.0      1466.0      113889.0      4314386.0      107998260.0        3:48:24
   M0:        0.000000 0.000000 1466.000000 113889.000000 4318098.000000 108220715.000000      2:04
   Mgm:       0.000000 0.000000 1464.250000 113822.250000 4317120.000000 108214022.750000      2:09
-  Mteo:      [seg fault]
+  Mteo:      [not enough memory]
   ironmask:  [seg fault]
 
 gadgets/wrong_isw2_mul_from_vraps_readme.py (d=2, i=2, o=1, rnd=1, prob=11, mult_prob=21)

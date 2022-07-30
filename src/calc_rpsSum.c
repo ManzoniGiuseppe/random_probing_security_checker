@@ -23,8 +23,8 @@
 
 static fixed_sum_t *rowData;
 static fixed_sum_t *probeData;
-static hash_s_t row_size;
-static hash_s_t probe_size;
+static size_t row_size;
+static size_t probe_size;
 
 static fixed_sum_t rowData_sumAbs(row_t row){
   fixed_sum_t *it = & rowData[rowTransform_transform_hash(row)];

@@ -16,8 +16,8 @@ static inline double* data_get(double *data, hash_s_t row, col_t ii, col_t x, ha
 static double *rowData;
 static double *probeData_sum;
 static double *probeData_min;
-static hash_s_t row_size;
-static hash_s_t probe_size;
+static size_t row_size;
+static size_t probe_size;
 
 static double xor_col(col_t v1, col_t v2){
   col_t v = v1 & v2;
@@ -156,25 +156,25 @@ coeff_t calc_rpcTeo(void){
   rowData = mem_calloc(sizeof(double), row_size * NUM_NORND_COLS * NUM_NORND_COLS,  "rowData for calc_rpcTeo");
   for(col_t ii = 0; ii < NUM_NORND_COLS; ii++)
     if(calcUtils_maxSharesIn(ii) <= T)
-      for(hash_s_t i = 0; i < row_size; i++)
+      for(hash_s_t row = 0; row < row_size; row++)
         for(col_t x = 0; x < NUM_NORND_COLS; x++)
-          *data_get(rowData, i, ii, x, row_size) = NAN;
+          *data_get(rowData, row, ii, x, row_size) = NAN;
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
   probeData_sum = mem_calloc(sizeof(double), probe_size * NUM_NORND_COLS * NUM_NORND_COLS, "probeData_sum for calc_rpcTeo");
   for(col_t ii = 0; ii < NUM_NORND_COLS; ii++)
     if(calcUtils_maxSharesIn(ii) <= T)
-      for(hash_s_t i = 0; i < probe_size; i++)
+      for(hash_s_t row = 0; row < probe_size; row++)
         for(col_t x = 0; x < NUM_NORND_COLS; x++)
-          *data_get(probeData_sum, i, ii, x, probe_size) = NAN;
+          *data_get(probeData_sum, row, ii, x, probe_size) = NAN;
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
   probeData_min = mem_calloc(sizeof(double), probe_size * NUM_NORND_COLS * NUM_NORND_COLS, "probeData_min for calc_rpcTeo");
   for(col_t ii = 0; ii < NUM_NORND_COLS; ii++)
     if(calcUtils_maxSharesIn(ii) <= T)
-      for(hash_s_t i = 0; i < probe_size; i++)
+      for(hash_s_t row = 0; row < probe_size; row++)
         for(col_t x = 0; x < NUM_NORND_COLS; x++)
-          *data_get(probeData_min, i, ii, x, probe_size) = NAN;
+          *data_get(probeData_min, row, ii, x, probe_size) = NAN;
 
   coeff_t ret = coeff_zero();
   row_t output = row_first();

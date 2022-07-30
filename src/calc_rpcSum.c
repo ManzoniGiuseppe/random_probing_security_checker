@@ -29,8 +29,8 @@ static inline fixed_sum_t* data_get(fixed_sum_t *data, hash_s_t row, col_t ii, h
 
 static fixed_sum_t *rowData;
 static fixed_sum_t* probeData;
-static hash_s_t row_size;
-static hash_s_t probe_size;
+static size_t row_size;
+static size_t probe_size;
 
 
 static fixed_sum_t rowData_sumAbs(row_t row, col_t ii){

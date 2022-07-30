@@ -16,8 +16,8 @@ static inline uint8_t* data_get(uint8_t *data, hash_s_t row, col_t ii, hash_s_t 
 
 static uint8_t *rowData;
 static uint8_t *probeData;
-static hash_s_t row_size;
-static hash_s_t probe_size;
+static size_t row_size;
+static size_t probe_size;
 
 static bool rowData_anyNot0(row_t row, col_t ii){
   uint8_t *it = data_get(rowData, rowTransform_transform_hash(row), ii, row_size);
