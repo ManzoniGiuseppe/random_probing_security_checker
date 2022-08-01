@@ -46,7 +46,7 @@ static void calculateAllRowTransform(){
 
       while(xorWith != 0){
         shift_t tail = TAIL_1(xorWith);
-        row_fn = bdd_op_xor(bdd, row_fn, core[tail + i * 64]);
+        row_fn = bdd_op_xor(bdd, row_fn, core[tail + i * ROW_VALUE_BITS]);
         xorWith ^= 1ll << tail;
       }
     }

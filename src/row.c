@@ -8,8 +8,8 @@
 
 
 
-#if D * NUM_OUTS > 64
-  #error "Current algprithm doesn't support D * NUM_OUTS > 64"
+#if D * NUM_OUTS > ROW_VALUE_BITS
+  #error "Current algprithm doesn't support D * NUM_OUTS > ROW_VALUE_BITS"
 #endif
 #if D * NUM_INS > 64
   #error "Current typing doesn't support D * NUM_INS > 64"
@@ -31,7 +31,7 @@ shift_t row_maxShares(row_t r){
 }
 row_t row_singleInput(shift_t input){
   row_t ret = (row_t){ {0} };
-  ret.values[input/64] = 1ll << (input % 64);
+  ret.values[input/ROW_VALUE_BITS] = 1ll << (input % ROW_VALUE_BITS);
   return ret;
 }
 row_t row_first(){
@@ -77,7 +77,7 @@ shift_t row_numOnes(row_t r){
   return ret;
 }
 
-static inline row_t row_add(row_t r, uint64_t toAdd, shift_t from){
+static inline row_t row_add(row_t r, row_value_t toAdd, shift_t from){
   for(int i = from; i < ROW_VALUES_SIZE && toAdd != 0; i++){
     r.values[i] += toAdd;
     toAdd = r.values[i] < toAdd ? 1 : 0; // carry if it overflows
@@ -86,8 +86,8 @@ static inline row_t row_add(row_t r, uint64_t toAdd, shift_t from){
 }
 
 static bool row_tryNextOut__i(row_t *curr, shift_t o){
-  row_value_t outMask = ((1ll << D)-1) << o*D;
-  row_value_t one = 1ll << o*D;
+  row_value_t outMask = ((1ll << D)-1) << (o*D);
+  row_value_t one = 1ll << (o*D);
 
   row_value_t outs = curr->values[0] & outMask;
   if(__builtin_popcountll(outs >> (o*D + D-T)) == T){
@@ -125,10 +125,9 @@ bool row_tryNextProbe(row_t *curr){
   *curr = row_add(*curr, 1ll << TAIL_1(curr->values[i]), i);
 
   for(i = ROW_VALUES_SIZE-1; i >= 0 && curr->values[i] == 0; i--); // skip highest 0s
-  if( i * 64 + LEAD_1(curr->values[i])  >= NUM_TOT_OUTS) return 0; // if overflows
+  if( i * ROW_VALUE_BITS + LEAD_1(curr->values[i])  >= NUM_TOT_OUTS) return 0; // if overflows
 
   return 1;
-
 }
 
 bool row_tryNextProbeAndOut(row_t *curr){

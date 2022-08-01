@@ -11,8 +11,10 @@
   typedef uint16_t fixed_sum_t; // fixed point notation 2.(NUM_TOT_INS+1)
 #elif NUM_TOT_INS+1+2 <= 32
   typedef uint32_t fixed_sum_t; // fixed point notation 2.(NUM_TOT_INS+1)
-#else
+#elif NUM_TOT_INS+1+2 <= 64
   typedef uint64_t fixed_sum_t; // fixed point notation 2.(NUM_TOT_INS+1)
+#else
+  #error "Not enough bits for fixed_sum_t"
 #endif
 
 #define MAX_FIXED_SUM  (1ll << (NUM_TOT_INS+1))

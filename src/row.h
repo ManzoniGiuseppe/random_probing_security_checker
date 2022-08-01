@@ -4,10 +4,11 @@
 
 #include "types.h"
 
-
-#define ROW_VALUES_SIZE ((NUM_TOT_OUTS+63)/64)
-
+#define ROW_VALUE_BITS  64
 typedef uint64_t row_value_t;
+
+#define ROW_VALUES_SIZE ((NUM_TOT_OUTS-1)/ROW_VALUE_BITS+1)
+
 typedef struct {
   row_value_t values[ROW_VALUES_SIZE];
 } row_t;

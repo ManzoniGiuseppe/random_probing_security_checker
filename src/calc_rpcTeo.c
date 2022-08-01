@@ -74,7 +74,7 @@ static double probeData_evalMin(row_t row, col_t ii, col_t x){
   row_t o = row_first();
   do{
     double val = probeData_sumPhase(row, o, ii, x);
-    *it = ABS(val);
+    *it += ABS(val);
   }while(row_tryGetNext(row, & o));
 
   *it = *it / 2 * ldexp(1.0, - row_numOnes(row)); // 2 ** - row_numOnes(row) = multeplicity * 2** - numprobes
