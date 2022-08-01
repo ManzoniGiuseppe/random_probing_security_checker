@@ -11,9 +11,10 @@ while [ "$#" -gt 0 ]; do
     -s) paramSage="$2"; shift 2;;
     -c) paramMaxCoeff="$2"; shift 2;;
 
-    --rps) operations="${operations} -DWITH_RPS_IS -DWITH_RPS_SUM"; shift 1;;
+    --rps) operations="${operations} -DWITH_RPS_IS -DWITH_RPS_SUM -DWITH_RPS_TEO"; shift 1;;
     --rpsIs) operations="${operations} -DWITH_RPS_IS"; shift 1;;
     --rpsSum) operations="${operations} -DWITH_RPS_SUM"; shift 1;;
+    --rpsTeo) operations="${operations} -DWITH_RPS_TEO"; shift 1;;
     --rpc=*) operations="${operations} -DWITH_RPC_IS -DWITH_RPC_SUM -DWITH_RPC_TEO"; paramT="${1#*=}"; shift 1;;
     --rpcIs=*) operations="${operations} -DWITH_RPC_IS"; paramT="${1#*=}"; shift 1;;
     --rpcSum=*) operations="${operations} -DWITH_RPC_SUM"; paramT="${1#*=}"; shift 1;;

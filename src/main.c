@@ -95,6 +95,10 @@ int main(){
   print_coeff(calc_rpsSum(), "RPS", "Mgm", "  ");
 #endif
 
+#ifdef WITH_RPS_TEO
+  print_coeff(calc_rpsTeo(), "RPS", "Mteo", " ");
+#endif
+
 #ifdef WITH_RPC_IS
   print_coeff(calc_rpcIs(),  "RPC", "M0", "   ");
 #endif
