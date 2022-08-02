@@ -191,6 +191,17 @@ RPC: coeffs of Mteo:  0.000000 0.000000 6.000000 244.000000 4101.500000 34557.00
 EOF
 )
 
+echo "otpoePaper_mul 4 1 (RPC)"
+diff <(./exec.sh -s gadgets/otpoePaper_mul.sage -c 4 --rps --rpc=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+RPS: coeffs of M0:    0.000000 0.000000 0.000000 662.000000 79898.000000
+RPS: coeffs of Mgm:   0.000000 0.000000 0.000000 207.062500 27717.625000
+RPS: coeffs of Mteo:  0.000000 0.000000 0.000000 207.062500 26466.250000
+RPC: coeffs of M0:    0.000000 0.000000 78.000000 10808.000000 725495.000000
+RPC: coeffs of Mgm:   0.000000 0.000000 78.000000 9924.500000 637100.875000
+RPC: coeffs of Mteo:  0.000000 0.000000 78.000000 9924.500000 632468.312500
+EOF
+)
+
 echo "otpoePaper_copy 10 1"
 diff <(./exec.sh -s gadgets/otpoePaper_copy.sage -c 10 --rps --rpc=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
 RPS: coeffs of M0:    0.000000 0.000000 0.000000 27.000000 459.000000 3699.000000 18792.000000 67509.000000 182331.000000 384238.000000 647141.000000
