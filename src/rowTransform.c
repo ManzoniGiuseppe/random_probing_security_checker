@@ -51,6 +51,22 @@ typedef struct {
 } reservation_row_t;
 
 
+//-- reverse
+
+
+// to reverse the row->hash translation
+static row_t *htRow_anyRow;
+static row_t *htTran_anyRow;
+static void __attribute__ ((constructor)) allocRow(){
+  htRow_anyRow = mem_calloc(sizeof(row_t), 1 /*placeholder*/, "htRow_anyRow for rowTransform");
+  htTran_anyRow = mem_calloc(sizeof(row_t), 1 /*placeholder*/, "htTran_anyRow for rowTransform");
+}
+static void __attribute__ ((destructor)) freeRow(){
+  mem_free(htRow_anyRow);
+  mem_free(htTran_anyRow);
+}
+
+
 //-- assoc
 
 
@@ -230,14 +246,23 @@ void rowTransform_finalizze(void){
 
   if(rowTransform_finalizze__tryWithSet()){
     rowTransform_finalizze__compact();
-    finalized = 1;
-    return;
+  }else{
+    for(hash_s_t i = 0; i < 1ll<<ROWTRANSFORM_ASSOC_BITS; i++)
+      assoc[i].row_hash = i;
+    row_hash_size = 1ll<<ROWTRANSFORM_ASSOC_BITS;
   }
 
-  for(hash_s_t i = 0; i < 1ll<<ROWTRANSFORM_ASSOC_BITS; i++)
-    assoc[i].row_hash = i;
-  row_hash_size = 1ll<<ROWTRANSFORM_ASSOC_BITS;
   finalized = 1;
+
+  mem_free(htRow_anyRow);
+  mem_free(htTran_anyRow);
+  htTran_anyRow = mem_calloc(sizeof(row_t), rowTransform_transform_hash_size(), "htRow_anyRow for rowTransform");
+  htRow_anyRow = mem_calloc(sizeof(row_t), rowTransform_row_hash_size(), "htRow_anyRow for rowTransform");
+  row_t row = row_first();
+  do{
+    htTran_anyRow[rowTransform_transform_hash(row)] = row;
+    htRow_anyRow[rowTransform_row_hash(row)] = row;
+  }while(row_tryNextProbeAndOut(& row));
 }
 
 
@@ -255,6 +280,13 @@ hash_s_t rowTransform_transform_hash_size(void){
   return 1ll << htTran->size;
 }
 
+//-- rowTransform_transform_anyRow
+
+row_t rowTransform_transform_anyRow(hash_s_t hash){
+  if(!finalized) FAIL("rowTransform: Asking to obtain the transform before finalization!\n")
+  return htTran_anyRow[hash];
+}
+
 //-- rowTransform_row_hash_size
 
 hash_s_t rowTransform_row_hash_size(void){
@@ -267,6 +299,13 @@ hash_s_t rowTransform_row_hash_size(void){
 hash_s_t rowTransform_row_hash(row_t index){
   if(!finalized) FAIL("rowTransform: Asking to obtain an hash before finalization!\n")
   return assoc[rowTransform_assoc_hash(index)].row_hash;
+}
+
+//-- rowTransform_row_anyRow
+
+row_t rowTransform_row_anyRow(hash_s_t hash){
+  if(!finalized) FAIL("rowTransform: Asking to obtain the transform before finalization!\n")
+  return htRow_anyRow[hash];
 }
 
 //-- rowTransform_get

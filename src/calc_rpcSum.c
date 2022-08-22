@@ -17,14 +17,13 @@
 #endif
 
 #define MAX_FIXED_SUM  (1ll << (NUM_TOT_INS+1))
-#define UNINIT_SUM (MAX_FIXED_SUM+1)
 #define FIXED_SUM_NORMALIZE(x)  ((x) > MAX_FIXED_SUM ? MAX_FIXED_SUM : (x))
 // NOTE: assigning from fixed_cell_t to fixed_sum_t implies a /2
 
 
 
-static inline fixed_sum_t* data_get(fixed_sum_t *data, hash_s_t row, col_t ii, hash_s_t size){
-  return & data[row + ii * size];
+static inline fixed_sum_t* data_get(fixed_sum_t *data, hash_s_t row, int ii_index, hash_s_t size){
+  return & data[row + ii_index * size];
 }
 
 static fixed_sum_t *rowData;
@@ -33,11 +32,8 @@ static size_t row_size;
 static size_t probe_size;
 
 
-static fixed_sum_t rowData_sumAbs(row_t row, col_t ii){
-  fixed_sum_t *it = data_get(rowData, rowTransform_transform_hash(row), ii, row_size);
-  if(*it != UNINIT_SUM){
-    return *it; // inited
-  }
+static void rowData_init(row_t row, col_t ii, int ii_index){
+  fixed_sum_t *it = data_get(rowData, rowTransform_transform_hash(row), ii_index, row_size);
 
   fixed_cell_t transform[NUM_NORND_COLS];
   rowTransform_get(row, transform);
@@ -49,28 +45,29 @@ static fixed_sum_t rowData_sumAbs(row_t row, col_t ii){
     }
   }
   *it = FIXED_SUM_NORMALIZE(*it);
-  return *it;
+}
+
+static fixed_sum_t rowData_sumAbs(row_t row, int ii_index){
+  return *data_get(rowData, rowTransform_transform_hash(row), ii_index, row_size);
 }
 
 // second sum (without multeplicity)
-static fixed_sum_t probeData_sumAbs(row_t row, col_t ii){
-  fixed_sum_t *it = data_get(probeData, rowTransform_row_hash(row), ii, probe_size);
-  if(*it != UNINIT_SUM){
-    return *it; // inited
-  }
+static fixed_sum_t probeData_sumAbs(row_t row, int ii_index);
+static void probeData_init(row_t row, __attribute__((unused)) col_t ii, int ii_index){
+  fixed_sum_t *it = data_get(probeData, rowTransform_row_hash(row), ii_index, probe_size);
 
-  fixed_sum_t onlyRow = rowData_sumAbs(row, ii);
+  fixed_sum_t onlyRow = rowData_sumAbs(row, ii_index);
   if(onlyRow >= MAX_FIXED_SUM){
     *it = MAX_FIXED_SUM; // this can be done as curr_min depneds entirely on the row's content.
-    return MAX_FIXED_SUM;
+    return;
   }
 
   /* the value of this probe is higher than the one of its sub probes */
   ITERATE_OVER_DIRECT_SUB_ROWS(row, sub, {
-    fixed_sum_t sub_val = probeData_sumAbs(sub, ii);
+    fixed_sum_t sub_val = probeData_sumAbs(sub, ii_index);
     if(sub_val + onlyRow >= MAX_FIXED_SUM){
       *it = MAX_FIXED_SUM;
-      return MAX_FIXED_SUM;
+      return;
     }
   })
 
@@ -78,20 +75,26 @@ static fixed_sum_t probeData_sumAbs(row_t row, col_t ii){
   *it = 0;
   row_t sub = row_first();
   do{
-    *it += rowData_sumAbs(sub, ii);
+    *it += rowData_sumAbs(sub, ii_index);
   }while(*it < MAX_FIXED_SUM && row_tryGetNext(row, & sub));
   *it = FIXED_SUM_NORMALIZE(*it);
-  return *it;
 }
+
+static fixed_sum_t probeData_sumAbs(row_t row, int ii_index){
+  return *data_get(probeData, rowTransform_row_hash(row), ii_index, probe_size);
+}
+
 
 static fixed_sum_t probeData_min(probeComb_t probes, row_t output){
   row_t row = probeComb_getHighestRow(probes, output);
 
   fixed_sum_t ret = MAX_FIXED_SUM;
+  int ii_index = 0;
   for(col_t ii = 0; ii < NUM_NORND_COLS && ret != 0; ii++){
     if(calcUtils_maxSharesIn(ii) <= T){
-      fixed_sum_t val = probeData_sumAbs(row, ii);
+      fixed_sum_t val = probeData_sumAbs(row, ii_index);
       ret = MIN(ret, val);
+      ii_index++;
     }
   }
 
@@ -106,22 +109,20 @@ static fixed_sum_t probeData_min(probeComb_t probes, row_t output){
 }
 
 coeff_t calc_rpcSum(void){
+  printf("rpcSum: 0/3\n");
   row_size = rowTransform_transform_hash_size();
   probe_size = rowTransform_row_hash_size();
 
   // to store if the wanted row as any != 0 in the appropriate columns.
-  rowData = mem_calloc(sizeof(fixed_sum_t), row_size * NUM_NORND_COLS, "rowData for calc_rpcSum");
-  for(hash_s_t i = 0; i < row_size; i++)
-    for(col_t ii = 0; ii < NUM_NORND_COLS; ii++)
-      if(calcUtils_maxSharesIn(ii) <= T)
-        *data_get(rowData, i, ii, row_size) = UNINIT_SUM;
+  rowData = mem_calloc(sizeof(fixed_sum_t), row_size * II_USED_COMB, "rowData for calc_rpcSum");
+  calcUtils_init_rowIi(1, rowData_init);
+  printf("rpcSum: 1/3\n");
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
-  probeData = mem_calloc(sizeof(fixed_sum_t), probe_size * NUM_NORND_COLS, "probeData for calc_rpcSum");
-  for(hash_s_t i = 0; i < probe_size; i++)
-    for(col_t ii = 0; ii < NUM_NORND_COLS; ii++)
-      if(calcUtils_maxSharesIn(ii) <= T)
-        *data_get(probeData, i, ii, probe_size) = UNINIT_SUM;
+  probeData = mem_calloc(sizeof(fixed_sum_t), probe_size * II_USED_COMB, "probeData for calc_rpcSum");
+  calcUtils_init_rowIi(0, probeData_init);
+  mem_free(rowData);
+  printf("rpcSum: 2/3\n");
 
   coeff_t ret = coeff_zero();
   row_t output = row_first();
@@ -140,9 +141,8 @@ coeff_t calc_rpcSum(void){
     ret = coeff_max(ret, curr);
   }while(row_tryNextOut(& output));
 
-  mem_free(rowData);
   mem_free(probeData);
-
+  printf("rpcSum: 3/3\n");
   return ret;
 }
 

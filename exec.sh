@@ -117,11 +117,13 @@ multeplicity_array="$(cat $dir/translated_assignments | ./get_probes_multipicity
 tot_mul_probes=$(echo "${multeplicity_array}" | tr '{},' '  \n'| awk '{s+=$1} END {print s}')
 num_nornd_cols=$[ 1 << ( numUndIns * d ) ]
 rows_used_bits=$(./getNumRowsUsed.py $numProb $paramMaxCoeff $numUndOuts $d $paramT)
+ii_used_comb=$(./getNumIIUsed.py $numUndIns $d $paramT)
+echo $ii_used_comb
 if [ $rows_used_bits -ge 31 ] ; then
   echo "Too much ram would need to be allocated! 2^$[rows_used_bits + numUndIns * d * 2 + 2 ] B " >&2
   exit 1
 fi
-gcc_flags_macro="${operations} -DNUM_INS=${numUndIns} -DNUM_OUTS=${numUndOuts} -DD=${d} -DNUM_RANDOMS=${numRnd} -DNUM_PROBES=${numProb} -DT=${paramT} -DMAX_COEFF=${paramMaxCoeff} -DROWTRANSFORM_ASSOC_BITS=${rows_used_bits} -DTOT_MUL_PROBES=${tot_mul_probes} -DBDD_STORAGE_BITS=24 -DBDD_CACHE_BITS=22 -DBDD_CACHE_WAYS=4 -DNUM_TOT_INS=${numIns} -DNUM_TOT_OUTS=${numOuts} -DNUM_NORND_COLS=${num_nornd_cols} -DFN_CMP_STEP=0.0001"
+gcc_flags_macro="${operations} -DNUM_INS=${numUndIns} -DNUM_OUTS=${numUndOuts} -DD=${d} -DNUM_RANDOMS=${numRnd} -DNUM_PROBES=${numProb} -DT=${paramT} -DMAX_COEFF=${paramMaxCoeff} -DROWTRANSFORM_ASSOC_BITS=${rows_used_bits} -DTOT_MUL_PROBES=${tot_mul_probes} -DBDD_STORAGE_BITS=24 -DBDD_CACHE_BITS=22 -DBDD_CACHE_WAYS=4 -DNUM_TOT_INS=${numIns} -DNUM_TOT_OUTS=${numOuts} -DNUM_NORND_COLS=${num_nornd_cols} -DII_USED_COMB=${ii_used_comb} -DFN_CMP_STEP=0.0001"
 
 cat > $dir/gadget.c << EOF
 #include "gadget.h"

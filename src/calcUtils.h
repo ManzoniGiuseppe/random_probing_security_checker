@@ -14,4 +14,11 @@ coeff_t calcUtils_totProbeMulteplicity(row_t highest_row);
 
 shift_t calcUtils_maxSharesIn(col_t value);
 
+void calcUtils_init_rowIi(bool rowElseProbe, void (*init)(row_t,col_t,int));
+void calcUtils_init_rowIiX(bool rowElseProbe, void (*init)(row_t,col_t,int,col_t));
+void calcUtils_init_rowOIiX(bool rowElseProbe, void (*init)(row_t,row_t,int,col_t,int,col_t));
+void calcUtils_init_probe(bool rowElseProbe, void (*init)(row_t));
+void calcUtils_init_probeX(bool rowElseProbe, void (*init)(row_t,col_t));
+void calcUtils_init_probeOX(bool rowElseProbe, void (*init)(row_t,row_t,int,col_t));
+
 #endif // _CALC_UTILS_H_

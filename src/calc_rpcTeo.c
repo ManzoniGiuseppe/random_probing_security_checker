@@ -9,8 +9,8 @@
 #include "rowTransform.h"
 
 
-static inline double* data_get(double *data, hash_s_t row, col_t ii, col_t x, hash_s_t size){
-  return & data[x + NUM_NORND_COLS * (row + size * ii)];
+static inline double* data_get(double *data, hash_s_t row, int ii_index, col_t x, hash_s_t size){
+  return & data[x + NUM_NORND_COLS * (row + size * ii_index)];
 }
 
 static double *rowData;
@@ -19,20 +19,24 @@ static double *probeData_min;
 static size_t row_size;
 static size_t probe_size;
 
+#define MAX_O_COMBS (1ll << (MAX_COEFF + T*NUM_OUTS))
+
+static inline double* probeData_sum_get(hash_s_t row, int ii_index, col_t x, int o_index, hash_s_t size){
+  return & probeData_sum[x + NUM_NORND_COLS * (row + size * ii_index + size * II_USED_COMB * o_index)];
+}
+
+
 static double xor_col(col_t v1, col_t v2){
   col_t v = v1 & v2;
   shift_t ones = __builtin_popcountll(v);
   return (ones % 2 == 0) ? 1 : -1;
 }
 
-static double rowData_sumPhase(row_t row, col_t ii, col_t x){
-  double *it = data_get(rowData, rowTransform_transform_hash(row), ii, x, row_size);
-  if(!isnan(*it)){
-    return *it; // inited
-  }
-
+static void rowData_init(row_t row, col_t ii, int ii_index, col_t x){
   fixed_cell_t transform[NUM_NORND_COLS];
   rowTransform_get(row, transform);
+
+  double *it = data_get(rowData, rowTransform_transform_hash(row), ii_index, x, row_size);
 
   *it = 0.0;
   for(col_t i = 0; i < NUM_NORND_COLS; i++){
@@ -40,7 +44,10 @@ static double rowData_sumPhase(row_t row, col_t ii, col_t x){
       *it += transform[i] / (double) (1ll << NUM_TOT_INS) * xor_col(i, x);
     }
   }
-  return *it;
+}
+
+static double rowData_sumPhase(row_t row, int ii_index, col_t x){
+  return *data_get(rowData, rowTransform_transform_hash(row), ii_index, x, row_size);
 }
 
 static double xor_row(row_t v1, row_t v2){
@@ -50,42 +57,43 @@ static double xor_row(row_t v1, row_t v2){
 }
 
 // without multeplicity
-static double probeData_sumPhase(row_t row, row_t o, col_t ii, col_t x){
-  double *it = data_get(probeData_sum, rowTransform_row_hash(row), ii, x, probe_size);
-  if(!isnan(*it)){
-    return *it; // inited
-  }
+static void probeData_sum_init(row_t row, row_t o, int o_index, __attribute__((unused)) col_t ii, int ii_index, col_t x){
+  double *it = probeData_sum_get(rowTransform_row_hash(row), ii_index, x, o_index, probe_size);
 
   *it = 0.0;
   row_t omega = row_first();
   do{
-     *it += rowData_sumPhase(omega, ii, x) * xor_row(o, omega);
+     *it += rowData_sumPhase(omega, ii_index, x) * xor_row(o, omega);
   }while(row_tryGetNext(row, & omega));
-  return *it;
 }
 
-static double probeData_evalMin(row_t row, col_t ii, col_t x){
-  double *it = data_get(probeData_min, rowTransform_row_hash(row), ii, x, probe_size);
-  if(!isnan(*it)){
-    return *it; // inited
-  }
+static double probeData_sumPhase(row_t row, int o_index, int ii_index, col_t x){
+  return *probeData_sum_get(rowTransform_row_hash(row), ii_index, x, o_index, probe_size);
+}
+
+static void probeData_min_init(row_t row, __attribute__((unused)) col_t ii, int ii_index, col_t x){
+  double *it = data_get(probeData_min, rowTransform_row_hash(row), ii_index, x, probe_size);
 
   *it = 0.0;
   row_t o = row_first();
+  int o_index = 0;
   do{
-    double val = probeData_sumPhase(row, o, ii, x);
+    double val = probeData_sumPhase(row, o_index, ii_index, x);
     *it += ABS(val);
+    o_index++;
   }while(row_tryGetNext(row, & o));
 
   *it = *it / 2 * ldexp(1.0, - row_numOnes(row)); // 2 ** - row_numOnes(row) = multeplicity * 2** - numprobes
   *it = MIN(1, *it);
+}
 
-  return *it;
+static double probeData_evalMin(row_t row, int ii_index, col_t x){
+  return *data_get(probeData_min, rowTransform_row_hash(row), ii_index, x, probe_size);
 }
 
 // with multeplicity
-static coeff_t toBeSummed(row_t highest_row, col_t ii, col_t x){
-  double min = probeData_evalMin(highest_row, ii, x);
+static coeff_t toBeSummed(row_t highest_row, int ii_index, col_t x){
+  double min = probeData_evalMin(highest_row, ii_index, x);
 
   if(min == 0.0) return coeff_zero();
 
@@ -100,13 +108,14 @@ static void minIn__givenProbe(row_t highest_row, coeff_t prev_lowest_curr[NUM_NO
     *ret_lowest_max = coeff_max(*ret_lowest_max, ret_lowest_curr[x]);
   }
 
-  for(int ii = 1; ii < NUM_NORND_COLS; ii++){ // try every result.
+  int ii_index = 0;
+  for(int ii = 0; ii < NUM_NORND_COLS; ii++){ // try every result.
     if(calcUtils_maxSharesIn(ii) > T) continue;
 
     coeff_t curr[NUM_NORND_COLS]; // over x
     coeff_t max = coeff_zero();
     for(col_t x = 0; x < NUM_NORND_COLS; x++){
-      curr[x] = coeff_add(prev_lowest_curr[x], toBeSummed(highest_row, ii, x));
+      curr[x] = coeff_add(prev_lowest_curr[x], toBeSummed(highest_row, ii_index, x));
       max = coeff_max(max, curr[x]);
     }
 
@@ -121,6 +130,7 @@ static void minIn__givenProbe(row_t highest_row, coeff_t prev_lowest_curr[NUM_NO
     if(used_curr)
       for(shift_t x = 0; x < NUM_NORND_COLS; x++)
         ret_lowest_curr[x] = curr[x];
+    ii_index++;
   }
 }
 
@@ -149,32 +159,26 @@ static coeff_t minIn(row_t out){
 
 
 coeff_t calc_rpcTeo(void){
+  printf("rpcTeo: 0/4\n");
   row_size = rowTransform_transform_hash_size();
   probe_size = rowTransform_row_hash_size();
 
   // to store if the wanted row as any != 0 in the appropriate columns.
-  rowData = mem_calloc(sizeof(double), row_size * NUM_NORND_COLS * NUM_NORND_COLS,  "rowData for calc_rpcTeo");
-  for(col_t ii = 0; ii < NUM_NORND_COLS; ii++)
-    if(calcUtils_maxSharesIn(ii) <= T)
-      for(hash_s_t row = 0; row < row_size; row++)
-        for(col_t x = 0; x < NUM_NORND_COLS; x++)
-          *data_get(rowData, row, ii, x, row_size) = NAN;
+  rowData = mem_calloc(sizeof(double), row_size * II_USED_COMB * NUM_NORND_COLS,  "rowData for calc_rpcTeo");
+  calcUtils_init_rowIiX(1, rowData_init);
+  printf("rpcTeo: 1/4\n");
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
-  probeData_sum = mem_calloc(sizeof(double), probe_size * NUM_NORND_COLS * NUM_NORND_COLS, "probeData_sum for calc_rpcTeo");
-  for(col_t ii = 0; ii < NUM_NORND_COLS; ii++)
-    if(calcUtils_maxSharesIn(ii) <= T)
-      for(hash_s_t row = 0; row < probe_size; row++)
-        for(col_t x = 0; x < NUM_NORND_COLS; x++)
-          *data_get(probeData_sum, row, ii, x, probe_size) = NAN;
+  probeData_sum = mem_calloc(sizeof(double), probe_size * II_USED_COMB * MAX_O_COMBS * NUM_NORND_COLS, "probeData_sum for calc_rpcTeo");
+  calcUtils_init_rowOIiX(0, probeData_sum_init);
+  mem_free(rowData);
+  printf("rpcTeo: 2/4\n");
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
-  probeData_min = mem_calloc(sizeof(double), probe_size * NUM_NORND_COLS * NUM_NORND_COLS, "probeData_min for calc_rpcTeo");
-  for(col_t ii = 0; ii < NUM_NORND_COLS; ii++)
-    if(calcUtils_maxSharesIn(ii) <= T)
-      for(hash_s_t row = 0; row < probe_size; row++)
-        for(col_t x = 0; x < NUM_NORND_COLS; x++)
-          *data_get(probeData_min, row, ii, x, probe_size) = NAN;
+  probeData_min = mem_calloc(sizeof(double), probe_size * II_USED_COMB * NUM_NORND_COLS, "probeData_min for calc_rpcTeo");
+  calcUtils_init_rowIiX(0, probeData_min_init);
+  mem_free(probeData_sum);
+  printf("rpcTeo: 3/4\n");
 
   coeff_t ret = coeff_zero();
   row_t output = row_first();
@@ -183,9 +187,7 @@ coeff_t calc_rpcTeo(void){
     ret = coeff_max(ret, curr);
   }while(row_tryNextOut(& output));
 
-  mem_free(rowData);
-  mem_free(probeData_sum);
   mem_free(probeData_min);
-
+  printf("rpcTeo: 4/4\n");
   return ret;
 }

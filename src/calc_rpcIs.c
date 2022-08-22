@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include "calc.h"
 #include "calcUtils.h"
 #include "mem.h"
@@ -5,79 +7,88 @@
 #include "rowTransform.h"
 
 
-#define  UNINIT     0
-#define  ALL_0      1
-#define  ANY_NOT_0  2
-
-
-static inline uint8_t* data_get(uint8_t *data, hash_s_t row, col_t ii, hash_s_t size){
-  return & data[row + ii * size];
+static inline bool* data_get(uint8_t *data, hash_s_t row, int ii_index, hash_s_t size){
+  return & data[row + ii_index * size];
 }
 
-static uint8_t *rowData;
-static uint8_t *probeData;
+static bool *rowData;
+static bool *probeData;
 static size_t row_size;
 static size_t probe_size;
 
-static bool rowData_anyNot0(row_t row, col_t ii){
-  uint8_t *it = data_get(rowData, rowTransform_transform_hash(row), ii, row_size);
-  if(*it) return *it == ANY_NOT_0; // inited
-
+static void rowData_init(row_t row, col_t ii, int ii_index){
   fixed_cell_t transform[NUM_NORND_COLS];
   rowTransform_get(row, transform);
 
+  bool *anyNot0 = data_get(rowData, rowTransform_transform_hash(row), ii_index, row_size);
+
   for(int i = 0; i < NUM_NORND_COLS; i++){
     if((i &~ ii) != 0 && transform[i] != 0){
-      *it = ANY_NOT_0;
-      return 1;
+      *anyNot0 = 1;
+      return;
     }
   }
-  *it = ALL_0;
-  return 0;
+
+  *anyNot0 = 0;
 }
 
-static bool probeData_anyNot0(row_t row, col_t ii){
-  uint8_t *it = data_get(probeData, rowTransform_row_hash(row), ii, probe_size);
-  if(*it) return *it == ANY_NOT_0; // inited
+static bool rowData_anyNot0(row_t row, int ii_index){
+  return *data_get(rowData, rowTransform_transform_hash(row), ii_index, row_size);
+}
 
-  if(rowData_anyNot0(row, ii)){
-    *it = ANY_NOT_0;
-    return 1;
+static bool probeData_anyNot0(row_t row, int ii_index);
+static void probeData_init(row_t row, __attribute__((unused)) col_t ii, int ii_index){
+  bool *anyNot0 = data_get(probeData, rowTransform_row_hash(row), ii_index, probe_size);
+
+  if(rowData_anyNot0(row, ii_index)){
+    *anyNot0 = 1;
+    return;
   }
 
   /* check if any of the direct sub-probes has the 1, if so then this is too */
   ITERATE_OVER_DIRECT_SUB_ROWS(row, sub, {
-    if(probeData_anyNot0(sub, ii)){
-      *it = ANY_NOT_0;
-      return 1;
+    if(probeData_anyNot0(sub, ii_index)){
+      *anyNot0 = 1;
+      return;
     }
   })
 
-  *it = ALL_0;
-  return 0;
+  *anyNot0 = 0;
+}
+
+static bool probeData_anyNot0(row_t row, int ii_index){
+  return *data_get(probeData, rowTransform_row_hash(row), ii_index, probe_size);
 }
 
 static bool probeData_is(row_t row){
+  int ii_index = 0;
   for(col_t ii = 0; ii < NUM_NORND_COLS; ii++){
-    if(calcUtils_maxSharesIn(ii) <= T && !probeData_anyNot0(row, ii)){
-      return 0; // all must be true
+    if(calcUtils_maxSharesIn(ii) <= T){
+      if(!probeData_anyNot0(row, ii_index)){
+        return 0; // all must be true
+      }
+      ii_index++;
     }
   }
   return 1;
 }
 
 
-
-
 coeff_t calc_rpcIs(void){
+  printf("rpcIs: 0/3\n");
   row_size = rowTransform_transform_hash_size();
   probe_size = rowTransform_row_hash_size();
 
   // to store if the wanted row as any != 0 in the appropriate columns.
-  rowData = mem_calloc(sizeof(uint8_t), row_size * NUM_NORND_COLS, "rowData for calc_rpcIs");
+  rowData = mem_calloc(sizeof(bool), row_size * II_USED_COMB, "rowData for calc_rpcIs");
+  calcUtils_init_rowIi(1, rowData_init);
+  printf("rpcIs: 1/3\n");
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
-  probeData = mem_calloc(sizeof(uint8_t), probe_size * NUM_NORND_COLS, "probeData for calc_rpcIs");
+  probeData = mem_calloc(sizeof(bool), probe_size * II_USED_COMB, "probeData for calc_rpcIs");
+  calcUtils_init_rowIi(0, probeData_init);
+  mem_free(rowData);
+  printf("rpcIs: 2/3\n");
 
   coeff_t ret = coeff_zero();
   row_t output = row_first();
@@ -100,10 +111,8 @@ coeff_t calc_rpcIs(void){
     ret = coeff_max(ret, curr);
   }while(row_tryNextOut(& output));
 
-
-  mem_free(rowData);
   mem_free(probeData);
-
+  printf("rpcIs: 3/3\n");
   return ret;
 }
 
