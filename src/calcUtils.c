@@ -1,5 +1,6 @@
 #include "calcUtils.h"
 #include "probeComb.h"
+#include "mem.h"
 #include "row.h"
 #include "rowTransform.h"
 
@@ -35,24 +36,24 @@ shift_t calcUtils_maxSharesIn(col_t value){
 }
 
 
-#define ITERATE_PROBE_AND_OUT(code)  { \
-    /* TODO hash_s_t max_h = rowElseProbe ? rowTransform_transform_hash_size() : rowTransform_row_hash_size(); \
-    for(hash_s_t h = 0; h < max_h; h++){ \
-      row_t probeAndOutput = rowElseProbe ? rowTransform_transform_anyRow(h) : rowTransform_row_anyRow(h); \
-      code \
-    } */ \
-    row_t probeAndOutput = row_first(); \
+#define ITERATE_PROBE_(Var, Next, Code)  { \
+    hash_s_t _size = rowElseProbe ? rowTransform_transform_hash_size() : rowTransform_row_hash_size(); \
+    uint8_t *_inited = mem_calloc(sizeof(uint8_t), (_size +7)/8, "calcUtils: ITERATE_PROBE_AND_OUT"); \
+    row_t Var = row_first(); \
     do{ \
-      code  \
-    }while(row_tryNextProbeAndOut(& probeAndOutput)); \
+      hash_s_t _h = rowElseProbe ? rowTransform_transform_hash(Var) : rowTransform_row_hash(Var); \
+      hash_s_t _byte = _h >> 3; \
+      hash_s_t _bit = _h & 7; \
+      if( ((_inited[_byte] >> _bit) & 1) == 0 ){ \
+        _inited[_byte] |= 1 << _bit; \
+        Code  \
+      } \
+    }while(Next(& Var)); \
+    mem_free(_inited); \
   }
 
-#define ITERATE_PROBE(code)  { \
-    row_t probe = row_first(); \
-    do{ \
-      code  \
-    }while(row_tryNextProbe(& probe)); \
-  }
+#define ITERATE_PROBE_AND_OUT(code)  ITERATE_PROBE_(probeAndOutput, row_tryNextProbeAndOut, code)
+#define ITERATE_PROBE(code) ITERATE_PROBE_(probe, row_tryNextProbe, code)
 
 #define ITERATE_II(code)  { \
     int ii_index = 0;  \
@@ -81,7 +82,7 @@ shift_t calcUtils_maxSharesIn(col_t value){
 
 
 
-void calcUtils_init_rowIi(bool rowElseProbe, void (*init)(row_t,col_t,int)){
+void calcUtils_init_outIi(bool rowElseProbe, void (*init)(row_t,col_t,int)){
   ITERATE_PROBE_AND_OUT({
     ITERATE_II({
         init(probeAndOutput, ii, ii_index);
@@ -89,7 +90,7 @@ void calcUtils_init_rowIi(bool rowElseProbe, void (*init)(row_t,col_t,int)){
   })
 }
 
-void calcUtils_init_rowIiX(bool rowElseProbe, void (*init)(row_t,col_t,int,col_t)){
+void calcUtils_init_outIiX(bool rowElseProbe, void (*init)(row_t,col_t,int,col_t)){
   ITERATE_PROBE_AND_OUT({
     ITERATE_II({
       ITERATE_X({
@@ -99,7 +100,7 @@ void calcUtils_init_rowIiX(bool rowElseProbe, void (*init)(row_t,col_t,int,col_t
   })
 }
 
-void calcUtils_init_rowOIiX(bool rowElseProbe, void (*init)(row_t,row_t,int,col_t,int,col_t)){
+void calcUtils_init_outOIiX(bool rowElseProbe, void (*init)(row_t,row_t,int,col_t,int,col_t)){
   ITERATE_PROBE_AND_OUT({
     ITERATE_O(probeAndOutput, {
       ITERATE_II({

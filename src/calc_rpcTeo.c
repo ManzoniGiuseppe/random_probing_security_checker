@@ -9,24 +9,50 @@
 #include "rowTransform.h"
 
 
-static inline double* data_get(double *data, hash_s_t row, int ii_index, col_t x, hash_s_t size){
-  return & data[x + NUM_NORND_COLS * (row + size * ii_index)];
-}
+// fixed point notation (1+D*NUM_INS).NUM_TOT_INS
+#if NUM_TOT_INS+1 + D*NUM_INS <= 16-1
+  typedef int16_t fixed_rowsum_t;
+#elif NUM_TOT_INS+1 + D*NUM_INS <= 32-1
+  typedef int32_t fixed_rowsum_t;
+#elif NUM_TOT_INS+1 + D*NUM_INS <= 64-1
+  typedef int64_t fixed_rowsum_t;
+#else
+  typedef double fixed_rowsum_t;
+#endif
 
-static double *rowData;
-static double *probeData_sum;
+// fixed point notation (1+D*NUM_INS + T*NUM_OUTS + MAX_COEFF).NUM_TOT_INS
+#if NUM_TOT_INS+1 + D*NUM_INS + T*NUM_OUTS + MAX_COEFF <= 16-1
+  typedef int16_t fixed_probesum_t;
+#elif NUM_TOT_INS+1 + D*NUM_INS + T*NUM_OUTS + MAX_COEFF <= 32-1
+  typedef int32_t fixed_probesum_t;
+#elif NUM_TOT_INS+1 + D*NUM_INS + T*NUM_OUTS + MAX_COEFF <= 64-1
+  typedef int64_t fixed_probesum_t;
+#else
+  typedef double fixed_probesum_t;
+#endif
+
+
+static fixed_rowsum_t *rowData;
+static fixed_probesum_t *probeData_sum;
 static double *probeData_min;
 static size_t row_size;
 static size_t probe_size;
 
 #define MAX_O_COMBS (1ll << (MAX_COEFF + T*NUM_OUTS))
 
-static inline double* probeData_sum_get(hash_s_t row, int ii_index, col_t x, int o_index, hash_s_t size){
-  return & probeData_sum[x + NUM_NORND_COLS * (row + size * ii_index + size * II_USED_COMB * o_index)];
+static inline fixed_rowsum_t* rowData_get(hash_s_t row, int ii_index, col_t x){
+  return & rowData[x + NUM_NORND_COLS * (row + row_size * ii_index)];
 }
 
+static inline fixed_probesum_t* probeData_sum_get(hash_s_t row, int ii_index, col_t x, int o_index){
+  return & probeData_sum[x + NUM_NORND_COLS * (row + probe_size * ii_index + probe_size * II_USED_COMB * o_index)];
+}
 
-static double xor_col(col_t v1, col_t v2){
+static inline double* probeData_min_get(hash_s_t row, int ii_index, col_t x){
+  return & probeData_min[x + NUM_NORND_COLS * (row + probe_size * ii_index)];
+}
+
+static int xor_col(col_t v1, col_t v2){
   col_t v = v1 & v2;
   shift_t ones = __builtin_popcountll(v);
   return (ones % 2 == 0) ? 1 : -1;
@@ -36,21 +62,21 @@ static void rowData_init(row_t row, col_t ii, int ii_index, col_t x){
   fixed_cell_t transform[NUM_NORND_COLS];
   rowTransform_get(row, transform);
 
-  double *it = data_get(rowData, rowTransform_transform_hash(row), ii_index, x, row_size);
+  fixed_rowsum_t *it = rowData_get(rowTransform_transform_hash(row), ii_index, x);
 
   *it = 0.0;
   for(col_t i = 0; i < NUM_NORND_COLS; i++){
     if((i &~ ii) != 0){
-      *it += transform[i] / (double) (1ll << NUM_TOT_INS) * xor_col(i, x);
+      *it += transform[i] * xor_col(i, x);
     }
   }
 }
 
-static double rowData_sumPhase(row_t row, int ii_index, col_t x){
-  return *data_get(rowData, rowTransform_transform_hash(row), ii_index, x, row_size);
+static fixed_rowsum_t rowData_sumPhase(row_t row, int ii_index, col_t x){
+  return *rowData_get(rowTransform_transform_hash(row), ii_index, x);
 }
 
-static double xor_row(row_t v1, row_t v2){
+static int xor_row(row_t v1, row_t v2){
   row_t v = row_and(v1, v2);
   int ones = row_numOnes(v);
   return (ones % 2 == 0) ? 1 : -1;
@@ -58,7 +84,7 @@ static double xor_row(row_t v1, row_t v2){
 
 // without multeplicity
 static void probeData_sum_init(row_t row, row_t o, int o_index, __attribute__((unused)) col_t ii, int ii_index, col_t x){
-  double *it = probeData_sum_get(rowTransform_row_hash(row), ii_index, x, o_index, probe_size);
+  fixed_probesum_t *it = probeData_sum_get(rowTransform_row_hash(row), ii_index, x, o_index);
 
   *it = 0.0;
   row_t omega = row_first();
@@ -68,11 +94,11 @@ static void probeData_sum_init(row_t row, row_t o, int o_index, __attribute__((u
 }
 
 static double probeData_sumPhase(row_t row, int o_index, int ii_index, col_t x){
-  return *probeData_sum_get(rowTransform_row_hash(row), ii_index, x, o_index, probe_size);
+  return *probeData_sum_get(rowTransform_row_hash(row), ii_index, x, o_index) / (double) (1ll << NUM_TOT_INS);
 }
 
 static void probeData_min_init(row_t row, __attribute__((unused)) col_t ii, int ii_index, col_t x){
-  double *it = data_get(probeData_min, rowTransform_row_hash(row), ii_index, x, probe_size);
+  double *it = probeData_min_get(rowTransform_row_hash(row), ii_index, x);
 
   *it = 0.0;
   row_t o = row_first();
@@ -88,7 +114,7 @@ static void probeData_min_init(row_t row, __attribute__((unused)) col_t ii, int 
 }
 
 static double probeData_evalMin(row_t row, int ii_index, col_t x){
-  return *data_get(probeData_min, rowTransform_row_hash(row), ii_index, x, probe_size);
+  return *probeData_min_get(rowTransform_row_hash(row), ii_index, x);
 }
 
 // with multeplicity
@@ -164,19 +190,19 @@ coeff_t calc_rpcTeo(void){
   probe_size = rowTransform_row_hash_size();
 
   // to store if the wanted row as any != 0 in the appropriate columns.
-  rowData = mem_calloc(sizeof(double), row_size * II_USED_COMB * NUM_NORND_COLS,  "rowData for calc_rpcTeo");
-  calcUtils_init_rowIiX(1, rowData_init);
+  rowData = mem_calloc(sizeof(fixed_rowsum_t), row_size * II_USED_COMB * NUM_NORND_COLS,  "rowData for calc_rpcTeo");
+  calcUtils_init_outIiX(1, rowData_init);
   printf("rpcTeo: 1/4\n");
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
-  probeData_sum = mem_calloc(sizeof(double), probe_size * II_USED_COMB * MAX_O_COMBS * NUM_NORND_COLS, "probeData_sum for calc_rpcTeo");
-  calcUtils_init_rowOIiX(0, probeData_sum_init);
+  probeData_sum = mem_calloc(sizeof(fixed_probesum_t), probe_size * II_USED_COMB * MAX_O_COMBS * NUM_NORND_COLS, "probeData_sum for calc_rpcTeo");
+  calcUtils_init_outOIiX(0, probeData_sum_init);
   mem_free(rowData);
   printf("rpcTeo: 2/4\n");
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
   probeData_min = mem_calloc(sizeof(double), probe_size * II_USED_COMB * NUM_NORND_COLS, "probeData_min for calc_rpcTeo");
-  calcUtils_init_rowIiX(0, probeData_min_init);
+  calcUtils_init_outIiX(0, probeData_min_init);
   mem_free(probeData_sum);
   printf("rpcTeo: 3/4\n");
 

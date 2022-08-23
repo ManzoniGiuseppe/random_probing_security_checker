@@ -13,10 +13,8 @@ void rowTransform_finalizze(void);
 void rowTransform_get(row_t row, fixed_cell_t ret_transform[NUM_NORND_COLS]);
 hash_s_t rowTransform_transform_hash_size(void);
 hash_s_t rowTransform_transform_hash(row_t row);
-row_t rowTransform_transform_anyRow(hash_s_t hash);
 hash_s_t rowTransform_row_hash_size(void);
 hash_s_t rowTransform_row_hash(row_t row);
-row_t rowTransform_row_anyRow(hash_s_t hash);
 
 
 double rowTransform_transform_dbg_fill(void);

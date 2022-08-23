@@ -115,12 +115,12 @@ coeff_t calc_rpcSum(void){
 
   // to store if the wanted row as any != 0 in the appropriate columns.
   rowData = mem_calloc(sizeof(fixed_sum_t), row_size * II_USED_COMB, "rowData for calc_rpcSum");
-  calcUtils_init_rowIi(1, rowData_init);
+  calcUtils_init_outIi(1, rowData_init);
   printf("rpcSum: 1/3\n");
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
   probeData = mem_calloc(sizeof(fixed_sum_t), probe_size * II_USED_COMB, "probeData for calc_rpcSum");
-  calcUtils_init_rowIi(0, probeData_init);
+  calcUtils_init_outIi(0, probeData_init);
   mem_free(rowData);
   printf("rpcSum: 2/3\n");
 

@@ -81,12 +81,12 @@ coeff_t calc_rpcIs(void){
 
   // to store if the wanted row as any != 0 in the appropriate columns.
   rowData = mem_calloc(sizeof(bool), row_size * II_USED_COMB, "rowData for calc_rpcIs");
-  calcUtils_init_rowIi(1, rowData_init);
+  calcUtils_init_outIi(1, rowData_init);
   printf("rpcIs: 1/3\n");
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
   probeData = mem_calloc(sizeof(bool), probe_size * II_USED_COMB, "probeData for calc_rpcIs");
-  calcUtils_init_rowIi(0, probeData_init);
+  calcUtils_init_outIi(0, probeData_init);
   mem_free(rowData);
   printf("rpcIs: 2/3\n");
 
