@@ -11,93 +11,129 @@ EOF
 )
 
 echo "vrapsPaper_add_v1 6 1"
-diff <(./exec.sh -s gadgets/vrapsPaper_add_v1.sage -c 6 --rps --rpc=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+diff <(./exec.sh -s gadgets/vrapsPaper_add_v1.sage -c 6 --rps --rpcIs=1 --rpcSum=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
 RPS: coeffs of M0:    0.000000 0.000000 0.000000 4.000000 186.000000 3978.000000 51842.000000
 RPS: coeffs of Mgm:   0.000000 0.000000 0.000000 2.000000 93.000000 2070.000000 29470.000000
 RPC: coeffs of M0:    0.000000 0.000000 6.000000 264.000000 5661.000000 76118.000000 696667.000000
 RPC: coeffs of Mgm:   0.000000 0.000000 6.000000 250.000000 5238.000000 71606.000000 680203.000000
-RPC: coeffs of Mteo:  0.000000 0.000000 6.000000 250.000000 5226.000000 70936.000000 669419.500000
+EOF
+)
+
+echo "vrapsPaper_add_v1 5 1 (RPC TEO)"
+diff <(./exec.sh -s gadgets/vrapsPaper_add_v1.sage -c 5 --rpcTeo=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+RPC: coeffs of Mteo:  0.000000 0.000000 6.000000 250.000000 5226.000000 70936.000000
 EOF
 )
 
 echo "vrapsPaper_add_v1 10 (RPS)"
-diff <(./exec.sh -s gadgets/vrapsPaper_add_v1.sage -c 10 --rps | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+diff <(./exec.sh -s gadgets/vrapsPaper_add_v1.sage -c 10 --rpsIs --rpsSum | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
 RPS: coeffs of M0:    0.000000 0.000000 0.000000 4.000000 186.000000 3978.000000 51842.000000 463866.000000 3054981.000000 15500672.000000 62520675.000000
 RPS: coeffs of Mgm:   0.000000 0.000000 0.000000 2.000000 93.000000 2070.000000 29470.000000 298464.000000 2247729.000000 12893016.000000 57294531.000000
 EOF
 )
 
 echo "vrapsPaper_add_v2 6 1"
-diff <(./exec.sh -s gadgets/vrapsPaper_add_v2.sage -c 6 --rps --rpc=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+diff <(./exec.sh -s gadgets/vrapsPaper_add_v2.sage -c 6 --rps --rpcIs=1 --rpcSum=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
 RPS: coeffs of M0:    0.000000 0.000000 0.000000 4.000000 177.000000 3711.000000 48635.000000
 RPS: coeffs of Mgm:   0.000000 0.000000 0.000000 2.000000 88.500000 1927.500000 27406.000000
 RPC: coeffs of M0:    0.000000 0.000000 6.000000 256.000000 5583.000000 77340.000000 720305.000000
 RPC: coeffs of Mgm:   0.000000 0.000000 6.000000 240.000000 5056.000000 71556.000000 702693.000000
-RPC: coeffs of Mteo:  0.000000 0.000000 6.000000 240.000000 5044.000000 70751.000000 688587.000000
+EOF
+)
+
+echo "vrapsPaper_add_v2 5 1 (RPC TEO)"
+diff <(./exec.sh -s gadgets/vrapsPaper_add_v2.sage -c 5 --rpcTeo=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+RPC: coeffs of Mteo:  0.000000 0.000000 6.000000 240.000000 5044.000000 70751.000000
 EOF
 )
 
 echo "vrapsPaper_add_v2 10 (RPS)"
-diff <(./exec.sh -s gadgets/vrapsPaper_add_v2.sage -c 10 --rps | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+diff <(./exec.sh -s gadgets/vrapsPaper_add_v2.sage -c 10 --rpsIs --rpsSum | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
 RPS: coeffs of M0:    0.000000 0.000000 0.000000 4.000000 177.000000 3711.000000 48635.000000 445914.000000 3040122.000000 15986207.000000 66390357.000000
 RPS: coeffs of Mgm:   0.000000 0.000000 0.000000 2.000000 88.500000 1927.500000 27406.000000 282099.000000 2193462.000000 13108074.000000 60519834.000000
 EOF
 )
 
 echo "vrapsPaper_add_v3 6 1"
-diff <(./exec.sh -s gadgets/vrapsPaper_add_v3.sage -c 6 --rps --rpc=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+diff <(./exec.sh -s gadgets/vrapsPaper_add_v3.sage -c 6 --rps --rpcIs=1 --rpcSum=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
 RPS: coeffs of M0:    0.000000 0.000000 0.000000 2.000000 78.000000 1497.000000 18757.000000
 RPS: coeffs of Mgm:   0.000000 0.000000 0.000000 1.000000 39.000000 777.000000 10496.500000
 RPC: coeffs of M0:    0.000000 0.000000 6.000000 224.000000 4423.000000 59776.000000 580731.000000
 RPC: coeffs of Mgm:   0.000000 0.000000 6.000000 224.000000 4338.000000 57761.000000 568805.000000
-RPC: coeffs of Mteo:  0.000000 0.000000 6.000000 224.000000 4338.000000 57587.000000 563287.000000
+EOF
+)
+
+echo "vrapsPaper_add_v3 5 1 (RPC TEO)"
+diff <(./exec.sh -s gadgets/vrapsPaper_add_v3.sage -c 5 --rpcTeo=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+RPC: coeffs of Mteo:  0.000000 0.000000 6.000000 224.000000 4338.000000 57587.000000
 EOF
 )
 
 echo "vrapsPaper_add_v3 10 (RPS)"
-diff <(./exec.sh -s gadgets/vrapsPaper_add_v3.sage -c 10 --rps | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+diff <(./exec.sh -s gadgets/vrapsPaper_add_v3.sage -c 10 --rpsIs --rpsSum | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
 RPS: coeffs of M0:    0.000000 0.000000 0.000000 2.000000 78.000000 1497.000000 18757.000000 172077.000000 1228674.000000 7068743.000000 33288438.000000
 RPS: coeffs of Mgm:   0.000000 0.000000 0.000000 1.000000 39.000000 777.000000 10496.500000 106779.000000 856300.500000 5522623.000000 28832418.000000
 EOF
 )
 
 echo "vrapsPaper_add_v4 6 1"
-diff <(./exec.sh -s gadgets/vrapsPaper_add_v4.sage -c 6 --rps --rpc=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+diff <(./exec.sh -s gadgets/vrapsPaper_add_v4.sage -c 6 --rps --rpcIs=1 --rpcSum=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
 RPS: coeffs of M0:    0.000000 0.000000 0.000000 2.000000 84.000000 1710.000000 22328.000000
 RPS: coeffs of Mgm:   0.000000 0.000000 0.000000 1.000000 42.000000 891.000000 12625.500000
 RPC: coeffs of M0:    0.000000 0.000000 6.000000 248.000000 5094.000000 68278.000000 641544.000000
 RPC: coeffs of Mgm:   0.000000 0.000000 6.000000 248.000000 5028.000000 66831.500000 634564.500000
-RPC: coeffs of Mteo:  0.000000 0.000000 6.000000 248.000000 5028.000000 66702.500000 630711.500000
+EOF
+)
+
+echo "vrapsPaper_add_v4 5 1 (RPC TEO)"
+diff <(./exec.sh -s gadgets/vrapsPaper_add_v4.sage -c 5 --rpcTeo=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+RPC: coeffs of Mteo:  0.000000 0.000000 6.000000 248.000000 5028.000000 66702.500000
 EOF
 )
 
 echo "add_test_1 6 1"
-diff <(./exec.sh -s gadgets/add_test_1.sage -c 6 --rps --rpc=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+diff <(./exec.sh -s gadgets/add_test_1.sage -c 6 --rps --rpcIs=1 --rpcSum=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
 RPS: coeffs of M0:    0.000000 0.000000 0.000000 4.000000 177.000000 3756.000000 50048.000000
 RPS: coeffs of Mgm:   0.000000 0.000000 0.000000 2.000000 88.500000 1950.000000 28216.000000
 RPC: coeffs of M0:    0.000000 0.000000 21.000000 715.000000 11875.000000 127660.000000 977348.000000
 RPC: coeffs of Mgm:   0.000000 0.000000 21.000000 708.500000 11667.500000 125409.000000 970108.000000
-RPC: coeffs of Mteo:  0.000000 0.000000 21.000000 708.500000 11661.500000 125033.500000 963947.500000
 EOF
 )
 
+echo "add_test_1 5 1 (RPC TEO)"
+diff <(./exec.sh -s gadgets/add_test_1.sage -c 5 --rpcTeo=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+RPC: coeffs of Mteo:  0.000000 0.000000 21.000000 708.500000 11661.500000 125033.500000
+EOF
+)
+
+
 echo "add_test_2 6 1"
-diff <(./exec.sh -s gadgets/add_test_2.sage -c 6 --rps --rpc=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+diff <(./exec.sh -s gadgets/add_test_2.sage -c 6 --rps --rpcIs=1 --rpcSum=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
 RPS: coeffs of M0:    0.000000 0.000000 0.000000 2.000000 70.000000 1198.000000 13362.000000
 RPS: coeffs of Mgm:   0.000000 0.000000 0.000000 1.000000 35.000000 618.500000 7382.500000
 RPC: coeffs of M0:    0.000000 0.000000 15.000000 516.000000 8552.000000 91404.000000 706681.000000
 RPC: coeffs of Mgm:   0.000000 0.000000 13.500000 477.000000 8105.500000 88520.000000 697321.000000
-RPC: coeffs of Mteo:  0.000000 0.000000 13.500000 477.000000 8075.500000 87830.500000 690107.500000
+EOF
+)
+
+echo "add_test_2 5 1 (RPC TEO)"
+diff <(./exec.sh -s gadgets/add_test_2.sage -c 5 --rpcTeo=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+RPC: coeffs of Mteo:  0.000000 0.000000 13.500000 477.000000 8075.500000 87830.500000
 EOF
 )
 
 echo "vrapsPaper_copy 10 1"
-diff <(./exec.sh -s gadgets/vrapsPaper_copy.sage -c 10 --rps --rpc=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+diff <(./exec.sh -s gadgets/vrapsPaper_copy.sage -c 10 --rps --rpcIs=1 --rpcSum=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
 RPS: coeffs of M0:    0.000000 0.000000 0.000000 27.000000 891.000000 13554.000000 126954.000000 826236.000000 4001787.000000 15095134.000000 45820470.000000
 RPS: coeffs of Mgm:   0.000000 0.000000 0.000000 13.500000 486.000000 8532.000000 94014.000000 705708.000000 3768507.000000 14908510.000000 45820470.000000
 RPC: coeffs of M0:    0.000000 0.000000 33.000000 1137.000000 16812.000000 145288.000000 852472.000000 3732534.000000 12981389.000000 37342867.000000 91195272.000000
 RPC: coeffs of Mgm:   0.000000 0.000000 30.000000 1089.000000 16572.000000 144904.000000 852472.000000 3732534.000000 12981389.000000 37342867.000000 91195272.000000
-RPC: coeffs of Mteo:  0.000000 0.000000 30.000000 1086.000000 16487.000000 144240.000000 850505.000000 3730137.000000 12979381.000000 37341682.000000 91194781.000000
+EOF
+)
+
+echo "vrapsPaper_copy 7 1 (RPC TEO)"
+diff <(./exec.sh -s gadgets/vrapsPaper_copy.sage -c 7 --rpcTeo=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+RPC: coeffs of Mteo:  0.000000 0.000000 30.000000 1086.000000 16487.000000 144240.000000 850505.000000 3730137.000000
 EOF
 )
 
@@ -119,17 +155,22 @@ EOF
 )
 
 echo "isw_mul_2 10 1"
-diff <(./exec.sh -s <(gadgets/isw_mul_generator.py 2) -c 10 --rps --rpc=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+diff <(./exec.sh -s <(gadgets/isw_mul_generator.py 2) -c 10 --rps --rpcIs=1 --rpcSum=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
 RPS: coeffs of M0:    0.000000 0.000000 51.000000 754.000000 4827.000000 18875.000000 52994.000000 115520.000000 203176.000000 293844.000000 352702.000000
 RPS: coeffs of Mgm:   0.000000 0.000000 17.875000 425.375000 4011.250000 18875.000000 52994.000000 115520.000000 203176.000000 293844.000000 352702.000000
 RPC: coeffs of M0:    0.000000 4.000000 131.000000 1173.000000 5810.000000 20230.000000 54215.000000 116269.000000 203489.000000 293930.000000 352716.000000
 RPC: coeffs of Mgm:   0.000000 3.500000 131.000000 1173.000000 5810.000000 20230.000000 54215.000000 116269.000000 203489.000000 293930.000000 352716.000000
-RPC: coeffs of Mteo:  0.000000 2.000000 80.250000 781.500000 4218.500000 14472.750000 32893.750000 53186.250000 65165.500000 62784.500000 47983.000000
+EOF
+)
+
+echo "isw_mul_2 9 1 (RPC TEO)"
+diff <(./exec.sh -s <(gadgets/isw_mul_generator.py 2) -c 9 --rpcTeo=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+RPC: coeffs of Mteo:  0.000000 2.000000 80.250000 781.500000 4218.500000 14472.750000 32893.750000 53186.250000 65165.500000 62784.500000
 EOF
 )
 
 echo "isw_mul_3 8 1"
-diff <(./exec.sh -s <(gadgets/isw_mul_generator.py 3) -c 8 --rps --rpcIs=1 --rpcSum=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+diff <(./exec.sh -s <(gadgets/isw_mul_generator.py 3) -c 8 --rpsIs --rpsSum --rpcIs=1 --rpcSum=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
 RPS: coeffs of M0:    0.000000 0.000000 0.000000 1178.000000 53135.000000 1149033.000000 15844475.000000 157122283.000000 1202023660.000000
 RPS: coeffs of Mgm:   0.000000 0.000000 0.000000 313.437500 19959.562500 613278.312500 11353203.562500 137899674.125000 1169122186.250000
 RPC: coeffs of M0:    0.000000 0.000000 428.000000 17351.000000 327328.000000 3954080.000000 35738768.000000 263430852.000000 1651133549.000000
@@ -138,15 +179,15 @@ EOF
 )
 
 echo "isw_mul_3 10 (RPS)"
-diff <(./exec.sh -s <(gadgets/isw_mul_generator.py 3) -c 10 --rps | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+diff <(./exec.sh -s <(gadgets/isw_mul_generator.py 3) -c 10 --rpsIs --rpsSum | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
 RPS: coeffs of M0:    0.000000 0.000000 0.000000 1178.000000 53135.000000 1149033.000000 15844475.000000 157122283.000000 1202023660.000000 7446862403.000000 38724322692.000000
 RPS: coeffs of Mgm:   0.000000 0.000000 0.000000 313.437500 19959.562500 613278.312500 11353203.562500 137899674.125000 1169122186.250000 7446862403.000000 38724322692.000000
 EOF
 )
 
-echo "isw_mul_3 6 (RPC TEO)"
-diff <(./exec.sh -s <(gadgets/isw_mul_generator.py 3) -c 5 --rpcTeo=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
-RPC: coeffs of ~Mteo:  0.000000 0.000000 255.625000 10751.000000 239028.125000 3348022.500000
+echo "isw_mul_3 4 (RPC TEO)"
+diff <(./exec.sh -s <(gadgets/isw_mul_generator.py 3) -c 4 --rpcTeo=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+RPC: coeffs of ~Mteo:  0.000000 0.000000 255.625000 10751.000000 239028.125000
 EOF
 )
 
@@ -177,7 +218,7 @@ EOF
 )
 
 echo "otpoePaper_add 10 1"
-diff <(./exec.sh -s gadgets/otpoePaper_add.sage -c 10 --rps --rpcIs=1 --rpcSum=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+diff <(./exec.sh -s gadgets/otpoePaper_add.sage -c 10 --rpsIs --rpsSum --rpcIs=1 --rpcSum=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
 RPS: coeffs of M0:    0.000000 0.000000 0.000000 4.000000 120.000000 1636.000000 13274.000000 72580.000000 287344.000000 860984.000000 2010862.000000
 RPS: coeffs of Mgm:   0.000000 0.000000 0.000000 2.000000 60.000000 868.000000 8048.000000 51926.000000 240570.000000 811298.000000 2010862.000000
 RPC: coeffs of M0:    0.000000 0.000000 6.000000 272.000000 4330.000000 34898.000000 170109.000000 571508.000000 1465596.000000 3036852.000000 5245902.000000
@@ -185,9 +226,9 @@ RPC: coeffs of Mgm:   0.000000 0.000000 6.000000 244.000000 4134.500000 34898.00
 EOF
 )
 
-echo "otpoePaper_add 8 1 (RPC TEO)"
-diff <(./exec.sh -s gadgets/otpoePaper_add.sage -c 8 --rpcTeo=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
-RPC: coeffs of Mteo:  0.000000 0.000000 6.000000 244.000000 4101.500000 34557.000000 169829.500000 571369.000000 1465550.500000
+echo "otpoePaper_add 5 1 (RPC TEO)"
+diff <(./exec.sh -s gadgets/otpoePaper_add.sage -c 5 --rpcTeo=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+RPC: coeffs of Mteo:  0.000000 0.000000 6.000000 244.000000 4101.500000 34557.000000
 EOF
 )
 
@@ -213,22 +254,32 @@ EOF
 )
 
 echo "wrong_isw_mul_2 10"
-diff <(./exec.sh -s <(gadgets/wrong_isw_mul_generator.py 2) -c 10 --rps --rpc=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+diff <(./exec.sh -s <(gadgets/wrong_isw_mul_generator.py 2) -c 10 --rps --rpcIs=1 --rpcSum=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
 RPS: coeffs of M0:    0.000000 0.000000 51.000000 754.000000 4827.000000 18875.000000 52994.000000 115520.000000 203176.000000 293844.000000 352702.000000
 RPS: coeffs of Mgm:   0.000000 0.000000 17.875000 425.375000 4011.250000 18875.000000 52994.000000 115520.000000 203176.000000 293844.000000 352702.000000
 RPC: coeffs of M0:    0.000000 4.000000 131.000000 1173.000000 5810.000000 20230.000000 54215.000000 116269.000000 203489.000000 293930.000000 352716.000000
 RPC: coeffs of Mgm:   0.000000 3.500000 131.000000 1173.000000 5810.000000 20230.000000 54215.000000 116269.000000 203489.000000 293930.000000 352716.000000
-RPC: coeffs of Mteo:  0.000000 2.000000 80.250000 781.500000 4218.500000 14472.750000 32893.750000 53186.250000 65165.500000 62784.500000 47983.000000
+EOF
+)
+
+echo "wrong_isw_mul_2 9 (RPC TEO)"
+diff <(./exec.sh -s <(gadgets/wrong_isw_mul_generator.py 2) -c 9 --rpcTeo=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+RPC: coeffs of Mteo:  0.000000 2.000000 80.250000 781.500000 4218.500000 14472.750000 32893.750000 53186.250000 65165.500000 62784.500000
 EOF
 )
 
 echo "wrong_isw_mul_3 5"
-diff <(./exec.sh -s <(gadgets/wrong_isw_mul_generator.py 3) -c 5 --rps --rpc=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+diff <(./exec.sh -s <(gadgets/wrong_isw_mul_generator.py 3) -c 5 --rps --rpcIs=1 --rpcSum=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
 RPS: coeffs of M0:    0.000000 0.000000 0.000000 1251.000000 56860.000000 1223237.000000
 RPS: coeffs of Mgm:   0.000000 0.000000 0.000000 324.812500 20901.375000 650916.875000
 RPC: coeffs of M0:    0.000000 0.000000 434.000000 17700.000000 331420.000000 3973964.000000
 RPC: coeffs of Mgm:   0.000000 0.000000 431.250000 17677.000000 331420.000000 3973964.000000
-RPC: coeffs of ~Mteo:  0.000000 0.000000 256.625000 10912.875000 239044.500000 3350640.500000
+EOF
+)
+
+echo "wrong_isw_mul_3 4 (RPC TEO)"
+diff <(./exec.sh -s <(gadgets/wrong_isw_mul_generator.py 3) -c 4 --rpcTeo=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+RPC: coeffs of ~Mteo:  0.000000 0.000000 256.625000 10912.875000 239044.500000
 EOF
 )
 
@@ -242,11 +293,16 @@ EOF
 )
 
 echo "wrong_isw2_mul_from_vraps_readme 10"
-diff <(./exec.sh -s gadgets/wrong_isw2_mul_from_vraps_readme.sage -c 10 --rps --rpc=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
+diff <(./exec.sh -s gadgets/wrong_isw2_mul_from_vraps_readme.sage -c 10 --rps --rpcIs=1 --rpcSum=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
 RPS: coeffs of M0:    0.000000 0.000000 51.000000 754.000000 4827.000000 18875.000000 52994.000000 115520.000000 203176.000000 293844.000000 352702.000000
 RPS: coeffs of Mgm:   0.000000 0.000000 17.500000 411.500000 3907.750000 18875.000000 52994.000000 115520.000000 203176.000000 293844.000000 352702.000000
 RPC: coeffs of M0:    0.000000 4.000000 131.000000 1173.000000 5810.000000 20230.000000 54215.000000 116269.000000 203489.000000 293930.000000 352716.000000
 RPC: coeffs of Mgm:   0.000000 4.000000 131.000000 1173.000000 5810.000000 20230.000000 54215.000000 116269.000000 203489.000000 293930.000000 352716.000000
+EOF
+)
+
+echo "wrong_isw2_mul_from_vraps_readme 9 (RPC TEO)"
+diff <(./exec.sh -s gadgets/wrong_isw2_mul_from_vraps_readme.sage -c 9 --rpcTeo=1 | grep '^RP[SC]: coeffs of ' ) <(cat << EOF
 RPC: coeffs of ~Mteo:  0.000000 2.000000 78.625000 874.750000 4540.750000 15205.000000 36926.750000 67296.000000 94953.750000 106575.750000 96525.000000
 EOF
 )
