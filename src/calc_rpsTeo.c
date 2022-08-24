@@ -35,7 +35,6 @@
 
 
 static fixed_rowsum_t *rowData;
-static fixed_probesum_t *probeData_sum;
 static double *probeData_min;
 static size_t row_size;
 static size_t probe_size;
@@ -44,10 +43,6 @@ static size_t probe_size;
 
 static inline fixed_rowsum_t* rowData_get(hash_s_t row, col_t x){
   return & rowData[row + row_size * x];
-}
-
-static inline fixed_probesum_t* probeData_sum_get(hash_s_t row, col_t x, int o_index){
-  return & probeData_sum[row + probe_size * x + probe_size * (1ll<<NUM_INS) * o_index];
 }
 
 static inline double* probeData_min_get(hash_s_t row, col_t x){
@@ -84,18 +79,14 @@ static int xor_row(row_t v1, row_t v2){
 }
 
 // without multeplicity
-static void probeData_sum_init(row_t row, row_t o, int o_index, col_t x){
-  fixed_probesum_t *it = probeData_sum_get(rowTransform_row_hash(row), x, o_index);
-
-  *it = 0.0;
+static double probeData_sumPhase(row_t row, row_t o, col_t x){
+  fixed_probesum_t it = 0.0;
   row_t omega = row_first();
   do{
-     *it += rowData_sumPhase(omega, x) * xor_row(o, omega);
+     it += rowData_sumPhase(omega, x) * xor_row(o, omega);
   }while(row_tryGetNext(row, & omega));
-}
 
-static double probeData_sumPhase(row_t row, int o_index, col_t x){
-  return *probeData_sum_get(rowTransform_row_hash(row), x, o_index) / (double) (1ll << NUM_TOT_INS);
+  return it / (double) (1ll << NUM_TOT_INS);
 }
 
 static void probeData_min_init(row_t row, col_t x){
@@ -103,11 +94,9 @@ static void probeData_min_init(row_t row, col_t x){
 
   *it = 0.0;
   row_t o = row_first();
-  int o_index = 0;
   do{
-    double val = probeData_sumPhase(row, o_index, x);
+    double val = probeData_sumPhase(row, o, x);
     *it += ABS(val);
-    o_index++;
   }while(row_tryGetNext(row, & o));
 
   *it = *it / 2 * ldexp(1.0, - row_numOnes(row)); // 2 ** - row_numOnes(row) = multeplicity * 2** - numprobes
@@ -138,26 +127,20 @@ static coeff_t sumProbes(col_t x){
 }
 
 coeff_t calc_rpsTeo(void){
-  printf("rpsTeo: 0/4\n");
+  printf("rpsTeo: 0/3\n");
   row_size = rowTransform_transform_hash_size();
   probe_size = rowTransform_row_hash_size();
 
   // to store if the wanted row as any != 0 in the appropriate columns.
   rowData = mem_calloc(sizeof(double), row_size * (1ll << NUM_INS),  "rowData for calc_rpsTeo");
   calcUtils_init_probeX(1, rowData_init);
-  printf("rpsTeo: 1/4\n");
-
-  // like for the row, but it acts on any sub-row, capturing the whole probe.
-  probeData_sum = mem_calloc(sizeof(double), probe_size * MAX_O_COMBS * (1ll << NUM_INS), "probeData_sum for calc_rpsTeo");
-  calcUtils_init_probeOX(0, probeData_sum_init);
-  mem_free(rowData);
-  printf("rpsTeo: 2/4\n");
+  printf("rpsTeo: 1/3\n");
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
   probeData_min = mem_calloc(sizeof(double), probe_size * (1ll << NUM_INS), "probeData_min for calc_rpsTeo");
   calcUtils_init_probeX(0, probeData_min_init);
-  mem_free(probeData_sum);
-  printf("rpsTeo: 3/4\n");
+  mem_free(rowData);
+  printf("rpsTeo: 2/3\n");
 
   coeff_t max = coeff_zero();
   for(col_t x = 0; x < 1ll<<NUM_INS; x++){
@@ -165,6 +148,6 @@ coeff_t calc_rpsTeo(void){
   }
 
   mem_free(probeData_min);
-  printf("rpsTeo: 4/4\n");
+  printf("rpsTeo: 3/3\n");
   return max;
 }

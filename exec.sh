@@ -5,6 +5,7 @@
 
 operations=""
 paramT=0  # for rps
+nocompile=0 # to get the info without wasting time
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -20,6 +21,8 @@ while [ "$#" -gt 0 ]; do
     --rpcSum=*) operations="${operations} -DWITH_RPC_SUM"; paramT="${1#*=}"; shift 1;;
     --rpcTeo=*) operations="${operations} -DWITH_RPC_TEO"; paramT="${1#*=}"; shift 1;;
 
+    --no-compile) nocompile=1; shift 1;;
+
     -s=*|--sage=*) paramSage="${1#*=}"; shift 1;;
     -c=*|--maxCoeff=*|--coeff=*) paramMaxCoeff="${1#*=}"; shift 1;;
     --sage|--maxCoeff|--rpcIs|--rpcSum|--rpcTeo) echo "$1 requires an argument" >&2; exit 1;;
@@ -30,13 +33,12 @@ while [ "$#" -gt 0 ]; do
 done
 
 if [ ! -e "$paramSage" ] ; then
-  echo 'The file .sage with the gadget must exist.' >&2
+  echo "The file .sage with the gadget must exist. Not: $paramSage" >&2
   exit 1
 fi
 
 if [ -z "$operations" ] ; then
-  echo 'At least an operation must be specified.' >&2
-  exit 1
+  echo 'No operation specified!'
 fi
 
 
@@ -115,10 +117,16 @@ done
 multeplicity_array="$(cat $dir/translated_assignments | ./get_probes_multipicity.py $[numUndOuts * d] $numProb | tr '[]' '{}')"
 
 tot_mul_probes=$(echo "${multeplicity_array}" | tr '{},' '  \n'| awk '{s+=$1} END {print s}')
+
+if [ -z "$paramMaxCoeff" ] ; then
+  paramMaxCoeff=$tot_mul_probes
+elif [ $tot_mul_probes -lt $paramMaxCoeff ] ; then
+  paramMaxCoeff=$tot_mul_probes
+fi
+
 num_nornd_cols=$[ 1 << ( numUndIns * d ) ]
 rows_used_bits=$(./getNumRowsUsed.py $numProb $paramMaxCoeff $numUndOuts $d $paramT)
 ii_used_comb=$(./getNumIIUsed.py $numUndIns $d $paramT)
-echo $ii_used_comb
 if [ $rows_used_bits -ge 31 ] ; then
   echo "Too much ram would need to be allocated! 2^$[rows_used_bits + numUndIns * d * 2 + 2 ] B " >&2
   exit 1
@@ -144,10 +152,13 @@ pushd $dir
 trap 'popd >/dev/null ; rm -rf "$dir"' EXIT
 
 # print to allow doublechecking
-echo $gcc_flags_macro
+echo "GCC FLAGS: " $gcc_flags_macro
 cat gadget.c
 
 # compile
+
+if [ $nocompile -eq 1 ] ; then exit ; fi
+
 souces="gadget $(ls *.c | sed 's/.c$//')"
 for name in $souces ; do
   gcc -c -O3 -flto -march=native -mtune=native -Wall -Wextra $gcc_flags_macro ${name}.c -o ${name}.o || exit 1
