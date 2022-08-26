@@ -103,7 +103,7 @@ static fixed_sum_t probeData_min(probeComb_t probes, row_t output){
   }
 
   shift_t shift_by = probeComb_getRowMulteplicity(probes);
-  if(ret >= (MAX_FIXED_SUM >> shift_by) ) return MAX_FIXED_SUM; // nearly the same as asking if  (ret <<>
+  if(ret >= (MAX_FIXED_SUM >> shift_by) ) return MAX_FIXED_SUM; // nearly the same as asking if  ret << shift_by >= MAX_FIXED_SUM
 
   return ret << shift_by;
 }

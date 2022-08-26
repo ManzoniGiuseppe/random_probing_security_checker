@@ -104,7 +104,7 @@ genScript_markOutputs(){
 }
 
 # translate
-cat $dir/uncommented_in | sed -f <(genStript_substituteInputs) | tac | sed -f <(genScript_markOutputs) | tac | ./replace_internal_variables.py $[numUndOuts * d] > $dir/translated_assignments
+cat $dir/uncommented_in | sed -f <(genStript_substituteInputs) | tac | sed -f <(genScript_markOutputs) | tac | ./exec_replaceInternalVariables.py $[numUndOuts * d] > $dir/translated_assignments
 
 #-- create the c file
 
@@ -114,7 +114,7 @@ for i in $(seq 0 $[numIns - 1]) ; do
   echo "ret[$[i + inputProbesOffset]] = x[${i}]" >> $dir/translated_inputs
 done
 
-multeplicity_array="$(cat $dir/translated_assignments | ./get_probes_multipicity.py $[numUndOuts * d] $numProb | tr '[]' '{}')"
+multeplicity_array="$(cat $dir/translated_assignments | ./exec_getProbesMultiplicity.py $[numUndOuts * d] $numProb | tr '[]' '{}')"
 
 tot_mul_probes=$(echo "${multeplicity_array}" | tr '{},' '  \n'| awk '{s+=$1} END {print s}')
 
@@ -125,8 +125,8 @@ elif [ $tot_mul_probes -lt $paramMaxCoeff ] ; then
 fi
 
 num_nornd_cols=$[ 1 << ( numUndIns * d ) ]
-rows_used_bits=$(./getNumRowsUsed.py $numProb $paramMaxCoeff $numUndOuts $d $paramT)
-ii_used_comb=$(./getNumIIUsed.py $numUndIns $d $paramT)
+rows_used_bits=$(./exec_getNumRowsUsed.py $numProb $paramMaxCoeff $numUndOuts $d $paramT)
+ii_used_comb=$(./exec_getNumIIUsed.py $numUndIns $d $paramT)
 if [ $rows_used_bits -ge 31 ] ; then
   echo "Too much ram would need to be allocated! 2^$[rows_used_bits + numUndIns * d * 2 + 2 ] B " >&2
   exit 1
