@@ -10,9 +10,9 @@ from matplotlib import pyplot as plt
 
 x = 10 ** np.arange(-5.00, 0.0, 0.1)
 
-for file in sys.stdin:
-  file = file[:-1]
+plt.loglog(x,x,label='id')
 
+for file in sys.argv[1:]:
   sagefile = 'gadgets/' + file.split('/')[1]
   print(sagefile)
 
