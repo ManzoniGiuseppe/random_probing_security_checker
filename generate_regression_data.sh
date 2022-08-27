@@ -17,8 +17,8 @@ function findCoeffAndSaveResults(){
   mkdir $out 2>/dev/null
 
   # limit
-  if [ $maxCoeff -ge 5 ] ; then
-    maxCoeff=5
+  if [ $maxCoeff -ge 7 ] ; then
+    maxCoeff=7
   fi
 
   for c in $(seq 0 $maxCoeff) ; do
@@ -27,12 +27,12 @@ function findCoeffAndSaveResults(){
     fi
     if [ ! -e $out/$c.success ] ; then
       echo "calculating ./exec -s $file $op -c $c > $out"
-      { timeout 1m bash -c "time ./exec.sh -s $file $op -c $c" ; } >$mainDir/_tmp_out 2>&1
+      { timeout 10m bash -c "time ./exec.sh -s $file $op -c $c" ; } >$mainDir/_tmp_out 2>&1
       status=$?
 
       if [ $status -eq 0 ] ; then
-        cat $mainDir/_tmp_out | grep '^RP[SC]: coeffs of ' | sed 's/^[^:]*:[^:]*: *//' > $out/$c.success
-        cat $mainDir/_tmp_out | grep '^user' | tail -n 1 | sed 's/^user[\t ]*//;s/m/:/' >> $out/$c.success
+        cat $mainDir/_tmp_out | grep -a '^RP[SC]: coeffs of ' | sed 's/^[^:]*:[^:]*: *//' > $out/$c.success
+        cat $mainDir/_tmp_out | grep -a '^user' | tail -n 1 | sed 's/^user[\t ]*//;s/m/:/' >> $out/$c.success
       elif [ $status -eq 124 ] ; then
         touch $out/$c.timeout
         return
@@ -55,8 +55,8 @@ function execGadget(){
   mkdir $mainDir/$name 2>/dev/null
 
   ./exec.sh -s $file -c 0 --no-compile > $mainDir/_tmp_out
-  maxCoeff=$(grep "^GCC FLAGS: " $mainDir/_tmp_out | sed "s/-D/\n/g" | grep "^TOT_MUL_PROBES=" | sed "s/^TOT_MUL_PROBES=//")
-  d=$(grep "^GCC FLAGS: " $mainDir/_tmp_out | sed "s/-D/\n/g" | grep "^D=" | sed "s/^D=//")
+  maxCoeff=$(grep -a "^GCC FLAGS: " $mainDir/_tmp_out | sed "s/-D/\n/g" | grep -a "^TOT_MUL_PROBES=" | sed "s/^TOT_MUL_PROBES=//")
+  d=$(grep -a "^GCC FLAGS: " $mainDir/_tmp_out | sed "s/-D/\n/g" | grep -a "^D=" | sed "s/^D=//")
 
   for op in $(echo -e "rpsIs\nrpsSum\nrpsTeo") ; do
     findCoeffAndSaveResults "$file" "--$op" "$mainDir/$name/$op" "$maxCoeff"
