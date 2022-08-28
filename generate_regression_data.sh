@@ -17,8 +17,8 @@ function findCoeffAndSaveResults(){
   mkdir $out 2>/dev/null
 
   # limit
-  if [ $maxCoeff -ge 7 ] ; then
-    maxCoeff=7
+  if [ $maxCoeff -ge 6 ] ; then
+    maxCoeff=6
   fi
 
   for c in $(seq 0 $maxCoeff) ; do
