@@ -17,7 +17,7 @@ function findCoeffAndSaveResults(){
 
   mkdir $out 2>/dev/null
 
-  c=$(ls $out | grep '\.success$' | sed 's:[^/]*/[^/]*/[^/]*/::' | sed 's/\.success$//' | sort -n | tail -n 1)
+  c=$(ls $out | grep -a '\.success$' | sed 's:[^/]*/[^/]*/[^/]*/::' | sed 's/\.success$//' | sort -n | tail -n 1)
 
   echo "calculating ./exec -s $file $op -c $c > _tmp_out"
   { timeout 10m bash -c "time ./exec.sh -s $file $op -c $c" ; } >$mainDir/_tmp_out 2>&1
@@ -25,8 +25,9 @@ function findCoeffAndSaveResults(){
 
   if [ $status -ne 0 ] ; then
     echo "FAIL: non 0 exit code!"
+    cat $mainDir/_tmp_out
   else
-    diff <(cat $mainDir/_tmp_out | grep '^RP[SC]: coeffs of ' | sed 's/^[^:]*:[^:]*: *//') <(cat $out/$c.success | head -n 1)
+    diff <(cat $mainDir/_tmp_out | grep -a '^RP[SC]: coeffs of ' | sed 's/^[^:]*:[^:]*: *//') <(cat $out/$c.success | head -n 1)
     if [ $? -ne 0 ] ; then
       echo "FAIL: different coefficients!"
     fi
@@ -44,18 +45,18 @@ function execGadget(){
   mkdir $mainDir/$name 2>/dev/null
 
   ./exec.sh -s $file -c 0 --no-compile > $mainDir/_tmp_out
-  maxCoeff=$(grep "^GCC FLAGS: " $mainDir/_tmp_out | sed "s/-D/\n/g" | grep "^TOT_MUL_PROBES=" | sed "s/^TOT_MUL_PROBES=//")
-  d=$(grep "^GCC FLAGS: " $mainDir/_tmp_out | sed "s/-D/\n/g" | grep "^D=" | sed "s/^D=//")
+  maxCoeff=$(grep -a "^GCC FLAGS: " $mainDir/_tmp_out | sed "s/-D/\n/g" | grep -a "^TOT_MUL_PROBES=" | sed "s/^TOT_MUL_PROBES=//")
+  d=$(grep -a "^GCC FLAGS: " $mainDir/_tmp_out | sed "s/-D/\n/g" | grep -a "^D=" | sed "s/^D=//")
 
   for op in $(echo -e "rpsIs\nrpsSum\nrpsTeo") ; do
-    if echo $allowedOp | grep -q ":$op:" ; then
+    if echo $allowedOp | grep -a -q ":$op:" ; then
       findCoeffAndSaveResults "$file" "--$op" "$mainDir/$name/$op" "$maxCoeff"
     fi
   done
 
   for t in $(seq 0 $[d - 1]) ; do
     for op in $(echo -e "rpcIs\nrpcSum\nrpcTeo") ; do
-      if echo $allowedOp | grep -q ":$op:" ; then
+      if echo $allowedOp | grep -a -q ":$op:" ; then
         findCoeffAndSaveResults "$file" "--${op}=$t" "$mainDir/$name/${op}=$t" "$maxCoeff"
       fi
     done
