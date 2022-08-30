@@ -128,10 +128,10 @@ if(counter == 100) printf("DBG: rowTransform: find: counter to 100\n");
 }
 
 static void htTran_increaseSize(void){
-  hashSet_t htTran_new = hashSet_new(htTran->size + 1, sizeof(reservation_tran_t), "htTran for rowTransform");
-  hash_s_t *newPos = mem_calloc(sizeof(hash_s_t), 1ll << htTran->size, "htTran translator for rowTransform");
+  hashSet_t htTran_new = hashSet_new(hashSet_getNumElem(htTran) + 1, sizeof(reservation_tran_t), "htTran for rowTransform");
+  hash_s_t *newPos = mem_calloc(sizeof(hash_s_t), 1ll << hashSet_getNumElem(htTran), "htTran translator for rowTransform");
 
-  for(hash_s_t i = 0; i < 1ll<<htTran->size; i++)
+  for(hash_s_t i = 0; i < 1ll<<hashSet_getNumElem(htTran); i++)
     if(hashSet_validPos(htTran, i))
       if(!hashSet_tryAdd(htTran_new, hashSet_getKey(htTran, i), newPos + i))
         FAIL("rowTransform: couldn't add a row to the htTran_new! fill=%f, conflictRate=%f\n", hashSet_dbg_fill(htTran_new), hashSet_dbg_hashConflictRate(htTran_new));
@@ -200,7 +200,7 @@ static bool rowTransform_finalizze__tryWithSet(void){
     }
   }while(row_tryNextProbeAndOut(& row));
 
-  row_hash_size = htRow->items;
+  row_hash_size = hashSet_getNumCurrElem(htRow);
 
   hashSet_delete(htRow);
   return 1;
@@ -251,7 +251,7 @@ hash_s_t rowTransform_transform_hash(row_t index){
 
 hash_s_t rowTransform_transform_hash_size(void){
   if(!finalized) FAIL("rowTransform: Asking to obtain the size of transform's hashes before finalization!\n")
-  return 1ll << htTran->size;
+  return 1ll << hashSet_getNumElem(htTran);
 }
 
 //-- rowTransform_row_hash_size
