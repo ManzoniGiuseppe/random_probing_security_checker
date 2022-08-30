@@ -229,8 +229,7 @@ coeff_t calc_rpcTeo(void){
   })
   printf("rpcTeo: 1/3\n");
 
-  // TODO: parametrize the shift_t constant
-  htProbe = hashSet_new(10, sizeof(probe_info_t), "htProbe for calc_rpcTeo");
+  htProbe = hashSet_new(RPCTEO_HTPROBE_BITS, sizeof(probe_info_t), "htProbe for calc_rpcTeo");
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
   probeData_min = mem_calloc(sizeof(hash_s_t), probe_size, "probeData_min for calc_rpcTeo");
