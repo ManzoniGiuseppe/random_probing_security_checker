@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <string.h>
 
 #include "calc.h"
 #include "calcUtils.h"
 #include "mem.h"
+#include "hashSet.h"
 #include "probeComb.h"
 #include "rowTransform.h"
 
@@ -33,16 +35,25 @@
 
 
 static fixed_rowsum_t *rowData;
-static double *probeData_min;
+static hash_s_t *probeData_min;
 static size_t row_size;
 static size_t probe_size;
 
-static inline fixed_rowsum_t* rowData_get(hash_s_t row, int ii_index, col_t x){
-  return & rowData[x + NUM_NORND_COLS * (row + row_size * ii_index)];
+typedef struct {
+  hash_l_t hash; // mandatory here.
+  double info[NUM_NORND_COLS][II_USED_COMB];
+} probe_info_t;
+
+static hashSet_t htProbe;
+
+
+
+static inline fixed_rowsum_t* rowData_get(row_t row, int ii_index, col_t x){
+  return & rowData[x + NUM_NORND_COLS * (rowTransform_transform_hash(row) + row_size * ii_index)];
 }
 
-static inline double* probeData_min_get(hash_s_t row, int ii_index, col_t x){
-  return & probeData_min[x + NUM_NORND_COLS * (row + probe_size * ii_index)];
+static inline hash_s_t* probeData_min_get(row_t row){
+  return & probeData_min[rowTransform_row_hash(row)];
 }
 
 static int xor_col(col_t v1, col_t v2){
@@ -55,7 +66,7 @@ static void rowData_init(row_t row, col_t ii, int ii_index, col_t x){
   fixed_cell_t transform[NUM_NORND_COLS];
   rowTransform_get(row, transform);
 
-  fixed_rowsum_t *it = rowData_get(rowTransform_transform_hash(row), ii_index, x);
+  fixed_rowsum_t *it = rowData_get(row, ii_index, x);
 
   *it = 0.0;
   for(col_t i = 0; i < NUM_NORND_COLS; i++){
@@ -66,7 +77,7 @@ static void rowData_init(row_t row, col_t ii, int ii_index, col_t x){
 }
 
 static fixed_rowsum_t rowData_sumPhase(row_t row, int ii_index, col_t x){
-  return *rowData_get(rowTransform_transform_hash(row), ii_index, x);
+  return *rowData_get(row, ii_index, x);
 }
 
 static int xor_row(row_t v1, row_t v2){
@@ -86,38 +97,69 @@ static double probeData_sumPhase(row_t row, row_t o, int ii_index, col_t x){
   return it / (double) (1ll << NUM_TOT_INS);
 }
 
-static void probeData_min_init(row_t row, __attribute__((unused)) col_t ii, int ii_index, col_t x){
-  double *it = probeData_min_get(rowTransform_row_hash(row), ii_index, x);
-
-  *it = 0.0;
+static double probeData_min_init__i(row_t row, __attribute__((unused)) col_t ii, int ii_index, col_t x){
+  double ret = 0.0;
   row_t o = row_first();
   do{
     double val = probeData_sumPhase(row, o, ii_index, x);
-    *it += ABS(val);
+    ret += ABS(val);
   }while(row_tryGetNext(row, & o));
 
-  *it = *it / 2 * ldexp(1.0, - row_numOnes(row)); // 2 ** - row_numOnes(row) = multeplicity * 2** - numprobes
-  *it = MIN(1, *it);
+  ret = ret / 2 * ldexp(1.0, - row_numOnes(row)); // 2 ** - row_numOnes(row) = multeplicity * 2** - numprobes
+  ret = MIN(1, ret);
+  return ret;
 }
 
-static double probeData_evalMin(row_t row, int ii_index, col_t x){
-  return *probeData_min_get(rowTransform_row_hash(row), ii_index, x);
+
+static void increaseSizeHtProbe(void){
+  hashSet_t htProbe_new = hashSet_new(hashSet_getNumElem(htProbe) + 1, sizeof(probe_info_t), "htProbe for calc_rpcTeo");
+  hash_s_t *newPos = mem_calloc(sizeof(hash_s_t), 1ll << hashSet_getNumElem(htProbe), "htProbe translator for calc_rpcTeo");
+
+  for(hash_s_t i = 0; i < 1ll<<hashSet_getNumElem(htProbe); i++)
+    if(hashSet_validPos(htProbe, i))
+      if(!hashSet_tryAdd(htProbe_new, hashSet_getKey(htProbe, i), newPos + i))
+        FAIL("calc_rpcTeo: couldn't add a row to the htProbe_new! fill=%f, conflictRate=%f\n", hashSet_dbg_fill(htProbe_new), hashSet_dbg_hashConflictRate(htProbe_new));
+
+  hashSet_delete(htProbe);
+  htProbe = htProbe_new;
+
+  for(hash_s_t i = 0; i < probe_size; i++){
+    hash_s_t *it = & probeData_min[i];
+    *it = newPos[*it];
+  }
+
+  mem_free(newPos);
 }
 
-// with multeplicity
-static coeff_t toBeSummed(row_t highest_row, int ii_index, col_t x){
-  double min = probeData_evalMin(highest_row, ii_index, x);
+static void probeData_min_init(row_t row){
+  probe_info_t key;
+  memset(&key, 0, sizeof(probe_info_t));
 
-  if(min == 0.0) return coeff_zero();
+  ITERATE_II({
+    ITERATE_X({
+      key.info[x][ii_index] = probeData_min_init__i(row, ii, ii_index, x);
+    })
+  })
 
-  return coeff_times(calcUtils_totProbeMulteplicity(highest_row), min);
+  hash_s_t *pos = probeData_min_get(row);
+  if(!hashSet_tryAdd(htProbe, &key, pos)){
+     increaseSizeHtProbe();
+     if(!hashSet_tryAdd(htProbe, &key, pos)){
+       FAIL("calc_rpcTeo: couldn't insert a probeData's info into the htProbe\n");
+    }
+  }
 }
+
+
 
 static void minIn__givenProbe(row_t highest_row, coeff_t prev_lowest_curr[NUM_NORND_COLS], coeff_t *ret_lowest_max, coeff_t ret_lowest_curr[NUM_NORND_COLS]){
+  probe_info_t *highest_row_info = hashSet_getKey(htProbe, *probeData_min_get(highest_row));
+  coeff_t multeplicity = calcUtils_totProbeMulteplicity(highest_row);
+
   // ii = 0, to init the variables of the cycle
   *ret_lowest_max = coeff_zero();
   for(col_t x = 0; x < NUM_NORND_COLS; x++){
-    ret_lowest_curr[x] = coeff_add(prev_lowest_curr[x], toBeSummed(highest_row, 0, x));
+    ret_lowest_curr[x] = coeff_add(prev_lowest_curr[x], coeff_times(multeplicity, highest_row_info->info[x][0]));
     *ret_lowest_max = coeff_max(*ret_lowest_max, ret_lowest_curr[x]);
   }
 
@@ -128,7 +170,7 @@ static void minIn__givenProbe(row_t highest_row, coeff_t prev_lowest_curr[NUM_NO
     coeff_t curr[NUM_NORND_COLS]; // over x
     coeff_t max = coeff_zero();
     for(col_t x = 0; x < NUM_NORND_COLS; x++){
-      curr[x] = coeff_add(prev_lowest_curr[x], toBeSummed(highest_row, ii_index, x));
+      curr[x] = coeff_add(prev_lowest_curr[x], coeff_times(multeplicity, highest_row_info->info[x][ii_index]));
       max = coeff_max(max, curr[x]);
     }
 
@@ -178,12 +220,23 @@ coeff_t calc_rpcTeo(void){
 
   // to store if the wanted row as any != 0 in the appropriate columns.
   rowData = mem_calloc(sizeof(fixed_rowsum_t), row_size * II_USED_COMB * NUM_NORND_COLS,  "rowData for calc_rpcTeo");
-  calcUtils_init_outIiX(1, rowData_init);
+  ITERATE_PROBE_AND_OUT(1, {
+    ITERATE_II({
+      ITERATE_X({
+        rowData_init(probeAndOutput, ii, ii_index, x);
+      })
+    })
+  })
   printf("rpcTeo: 1/3\n");
 
+  // TODO: parametrize the shift_t constant
+  htProbe = hashSet_new(10, sizeof(probe_info_t), "htProbe for calc_rpcTeo");
+
   // like for the row, but it acts on any sub-row, capturing the whole probe.
-  probeData_min = mem_calloc(sizeof(double), probe_size * II_USED_COMB * NUM_NORND_COLS, "probeData_min for calc_rpcTeo");
-  calcUtils_init_outIiX(0, probeData_min_init);
+  probeData_min = mem_calloc(sizeof(hash_s_t), probe_size, "probeData_min for calc_rpcTeo");
+  ITERATE_PROBE_AND_OUT(0, {
+    probeData_min_init(probeAndOutput);
+  })
   mem_free(rowData);
   printf("rpcTeo: 2/3\n");
 
@@ -195,6 +248,7 @@ coeff_t calc_rpcTeo(void){
   }while(row_tryNextOut(& output));
 
   mem_free(probeData_min);
+  hashSet_delete(htProbe);
   printf("rpcTeo: 3/3\n");
   return ret;
 }

@@ -86,6 +86,8 @@ coeff_t coeff_add(coeff_t v1, coeff_t v2){
 }
 
 coeff_t coeff_times(coeff_t v1, double c){
+  if(c == 0.0) return coeff_zero();
+
   for(shift_t i = 0; i <= MAX_COEFF; i++)
     v1.values[i] *= c;
   return v1;

@@ -41,12 +41,12 @@ static size_t probe_size;
 
 #define MAX_O_COMBS (1ll << MAX_COEFF)
 
-static inline fixed_rowsum_t* rowData_get(hash_s_t row, col_t x){
-  return & rowData[row + row_size * x];
+static inline fixed_rowsum_t* rowData_get(row_t row, col_t x){
+  return & rowData[rowTransform_transform_hash(row) + row_size * x];
 }
 
-static inline double* probeData_min_get(hash_s_t row, col_t x){
-  return & probeData_min[row + probe_size * x];
+static inline double* probeData_min_get(row_t row, col_t x){
+  return & probeData_min[rowTransform_row_hash(row) + probe_size * x];
 }
 
 
@@ -60,7 +60,7 @@ static void rowData_init(row_t row, col_t x){
   fixed_cell_t transform[NUM_NORND_COLS];
   rowTransform_get(row, transform);
 
-  fixed_rowsum_t *it = rowData_get(rowTransform_transform_hash(row), x);
+  fixed_rowsum_t *it = rowData_get(row, x);
 
   *it = 0.0;
   for(col_t i = 1; i < 1ll<<NUM_INS; i++){ // 0 excluded
@@ -69,7 +69,7 @@ static void rowData_init(row_t row, col_t x){
 }
 
 static fixed_rowsum_t rowData_sumPhase(row_t row, col_t x){
-  return *rowData_get(rowTransform_transform_hash(row), x);
+  return *rowData_get(row, x);
 }
 
 static int xor_row(row_t v1, row_t v2){
@@ -90,7 +90,7 @@ static double probeData_sumPhase(row_t row, row_t o, col_t x){
 }
 
 static void probeData_min_init(row_t row, col_t x){
-  double *it = probeData_min_get(rowTransform_row_hash(row), x);
+  double *it = probeData_min_get(row, x);
 
   *it = 0.0;
   row_t o = row_first();
@@ -104,7 +104,7 @@ static void probeData_min_init(row_t row, col_t x){
 }
 
 static double probeData_evalMin(row_t row, col_t x){
-  return *probeData_min_get(rowTransform_row_hash(row), x);
+  return *probeData_min_get(row, x);
 }
 
 
@@ -133,12 +133,20 @@ coeff_t calc_rpsTeo(void){
 
   // to store if the wanted row as any != 0 in the appropriate columns.
   rowData = mem_calloc(sizeof(double), row_size * (1ll << NUM_INS),  "rowData for calc_rpsTeo");
-  calcUtils_init_probeX(1, rowData_init);
+  ITERATE_PROBE(1, {
+    ITERATE_X({
+      rowData_init(probe, x);
+    })
+  })
   printf("rpsTeo: 1/3\n");
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
   probeData_min = mem_calloc(sizeof(double), probe_size * (1ll << NUM_INS), "probeData_min for calc_rpsTeo");
-  calcUtils_init_probeX(0, probeData_min_init);
+  ITERATE_PROBE(0, {
+    ITERATE_X({
+      probeData_min_init(probe, x);
+    })
+  })
   mem_free(rowData);
   printf("rpsTeo: 2/3\n");
 

@@ -98,12 +98,16 @@ coeff_t calc_rpsSum(void){
 
   // to store if the wanted row as any != 0 in the appropriate columns.
   rowData = mem_calloc(sizeof(fixed_sum_t), row_size, "rowData for calc_rpsSum");
-  calcUtils_init_probe(1, rowData_init);
+  ITERATE_PROBE(1, {
+    rowData_init(probe);
+  })
   printf("rpsSum: 1/3\n");
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
   probeData = mem_calloc(sizeof(fixed_sum_t), probe_size, "probeData for calc_rpsSum");
-  calcUtils_init_probe(0, probeData_init);
+  ITERATE_PROBE(0, {
+    probeData_init(probe);
+  })
   mem_free(rowData);
   printf("rpsSum: 2/3\n");
 

@@ -65,12 +65,16 @@ coeff_t calc_rpsIs(void){
 
   // to store if the wanted row as any != 0 in the appropriate columns.
   rowData = mem_calloc(sizeof(bool), row_size, "rowData for calc_rpsIs");
-  calcUtils_init_probe(1, rowData_init);
+  ITERATE_PROBE(1, {
+    rowData_init(probe);
+  })
   printf("rpsIs: 1/3\n");
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
   probeData = mem_calloc(sizeof(bool), probe_size, "probeData for calc_rpsIs");
-  calcUtils_init_probe(0, probeData_init);
+  ITERATE_PROBE(0, {
+    probeData_init(probe);
+  })
   mem_free(rowData);
   printf("rpsIs: 2/3\n");
 
