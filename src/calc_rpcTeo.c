@@ -136,7 +136,7 @@ static void probeData_min_init(row_t row){
   memset(&key, 0, sizeof(probe_info_t));
 
   ITERATE_II({
-    ITERATE_X({
+    ITERATE_X_ACT({
       key.info[x][ii_index] = probeData_min_init__i(row, ii, ii_index, x);
     })
   })
@@ -222,7 +222,7 @@ coeff_t calc_rpcTeo(void){
   rowData = mem_calloc(sizeof(fixed_rowsum_t), row_size * II_USED_COMB * NUM_NORND_COLS,  "rowData for calc_rpcTeo");
   ITERATE_PROBE_AND_OUT(1, {
     ITERATE_II({
-      ITERATE_X({
+      ITERATE_X_ACT({
         rowData_init(probeAndOutput, ii, ii_index, x);
       })
     })

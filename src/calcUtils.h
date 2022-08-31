@@ -45,8 +45,14 @@ shift_t calcUtils_maxSharesIn(col_t value);
     } \
   }
 
-#define ITERATE_X(code)  { \
+#define ITERATE_X_UND(code)  { \
     for(col_t x = 0; x < (1ll << NUM_INS); x++){ \
+      code  \
+    } \
+  }
+
+#define ITERATE_X_ACT(code)  { \
+    for(col_t x = 0; x < (1ll << D * NUM_INS); x++){ \
       code  \
     } \
   }

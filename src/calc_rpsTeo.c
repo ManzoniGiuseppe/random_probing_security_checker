@@ -134,7 +134,7 @@ coeff_t calc_rpsTeo(void){
   // to store if the wanted row as any != 0 in the appropriate columns.
   rowData = mem_calloc(sizeof(double), row_size * (1ll << NUM_INS),  "rowData for calc_rpsTeo");
   ITERATE_PROBE(1, {
-    ITERATE_X({
+    ITERATE_X_UND({
       rowData_init(probe, x);
     })
   })
@@ -143,7 +143,7 @@ coeff_t calc_rpsTeo(void){
   // like for the row, but it acts on any sub-row, capturing the whole probe.
   probeData_min = mem_calloc(sizeof(double), probe_size * (1ll << NUM_INS), "probeData_min for calc_rpsTeo");
   ITERATE_PROBE(0, {
-    ITERATE_X({
+    ITERATE_X_UND({
       probeData_min_init(probe, x);
     })
   })
