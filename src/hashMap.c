@@ -66,80 +66,6 @@ void hashMap_delete(hashMap_t ht_p){
 }
 
 
-/*
-// must be pow2
-#define CACHE_LINE 64
-#define NUM_ATTEMPT_HASH_S 16
-
-static inline hash_l_t calc_hash_l(hashMap_priv_t ht, void *key_p){
-  uint64_t *key = key_p;
-
-  size_t size = ht->size_k/sizeof(uint64_t);
-
-  hash_l_t hash = 1;
-  for(size_t i = 0; i < size; i++){
-    hash_l_t it = key[i];
-    it = (it * 0xB0000B) ^ ROT(it, 17);
-    hash ^= (it * 0xB0000B) ^ ROT(it, 17);
-    hash = (hash * 0xB0000B) ^ ROT(hash, 17);
-  }
-
-  hash = (hash * 0xB0000B) ^ ROT(hash, 17);
-  return hash != 0 ? hash : 1;
-}
-
-static hash_s_t calc_hash_s(hashMap_priv_t ht, hash_l_t hash, hash_l_t counter){
-  if(counter == 0){
-    return hash & ((1ll << ht->num_elem) -1);
-  }
-  if(counter <= 7){
-    shift_t s = counter * 8;
-    return ROT(hash, s) & ((1ll << ht->num_elem) -1);
-  }
-  if(counter <= 15){
-    shift_t s = (counter - 8) * 8;
-    hash = ROT(hash, s);
-    hash_s_t r = 0;
-    for(int i = 0; i < 64; i+=ht->num_elem)
-      r ^= (hash >> i) & ((1ll << ht->num_elem) -1);
-    return r;
-  }
-  FAIL("hashMap: %s: bug in calc_hash_s", ht->of_what)
-}
-
-static int hashMap_find(hashMap_priv_t ht, void *key, hash_s_t *hash_elem){
-  ht->hash_requests++;
-  hash_l_t *base_hash = (hash_l_t*) key; // struct has the same pointer as its first element
-
-  if(*base_hash == 0) *base_hash = calc_hash_l(ht, key);
-  if(*base_hash == 0){
-    printf("hashMap: %s: couldn't calculate a base_hash != 0\n", ht->of_what);
-    return -1;
-  }
-  size_t size_tot = ht->size_k + ht->size_v;
-  hash_s_t block = MIN( (hash_s_t) 1ll<<ht->num_elem, 1+ (hash_s_t) (CACHE_LINE-1)/size_tot );
-
-  for(hash_s_t counter = 0; counter < NUM_ATTEMPT_HASH_S; counter++){
-    hash_s_t hash = calc_hash_s(ht, *base_hash, counter);
-
-    for(hash_s_t i = 0; i < block; i++){
-      *hash_elem = (hash + i) & ((1ll << ht->num_elem)-1); // (hash &~(block-1)) | ((hash+i) & (block-1));
-      void* elem = ht->table + *hash_elem * size_tot;
-      ht->hash_lookups++;
-
-      if(*(hash_l_t*) elem == 0) // struct has the same pointer as its first element. 0 -> uninited
-        return 0;
-
-      if(memcmp(elem, key, ht->size_k) == 0)
-        return 1;
-    }
-  }
-
-  printf("hashMap: %s: couldn't find a match or an empty place! fill=%d%%, conflictRate=%d%%\n", ht->of_what, (int) (hashMap_dbg_fill(ht) * 100), (int) (hashMap_dbg_hashConflictRate(ht) * 100));
-  return -1;
-}
-*/
-
 static inline hash_l_t calc_hash(hashMap_priv_t ht, void *key_p, hash_l_t init){
   uint64_t *key = key_p;
 
@@ -223,8 +149,12 @@ hash_s_t hashMap_getPos(hashMap_t ht_p, void *key){
    return hash_elem;
 }
 
-bool hashMap_validPos(hashMap_t ht, hash_s_t pos){
-  void* elem = hashMap_getKey(ht, pos);
+bool hashMap_validPos(hashMap_t ht_p, hash_s_t pos){
+  hashMap_priv_t ht = ht_p;
+
+  size_t size_tot = ht->size_k + ht->size_v;
+  void *elem = ht->table + pos * size_tot;
+
   return *(hash_l_t*) elem != 0; // struct has the same pointer as its first element
 }
 
@@ -232,14 +162,22 @@ void* hashMap_getKey(hashMap_t ht_p, hash_s_t pos){
   hashMap_priv_t ht = ht_p;
 
   size_t size_tot = ht->size_k + ht->size_v;
-  return ht->table + pos * size_tot;
+  void *key = ht->table + pos * size_tot;
+
+  if(*(hash_l_t*) key == 0) FAIL("hashTable: %s: trying to get the key of a missing position\n", ht->of_what)
+
+  return key;
 }
 
 void* hashMap_getValue(hashMap_t ht_p, hash_s_t pos){
   hashMap_priv_t ht = ht_p;
 
   size_t size_tot = ht->size_k + ht->size_v;
-  return ht->table + pos * size_tot + ht->size_k;
+  void *key = ht->table + pos * size_tot;
+
+  if(*(hash_l_t*) key == 0) FAIL("hashTable: %s: trying to get the value of a missing position\n", ht->of_what)
+
+  return key + ht->size_k;
 }
 
 bool hashMap_set(hashMap_t ht_p, void *key, void *value, hash_s_t *ret_pos){
