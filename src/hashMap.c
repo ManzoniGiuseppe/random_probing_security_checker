@@ -67,7 +67,7 @@ void hashMap_delete(hashMap_t ht_p){
 
 
 static inline hash_l_t calc_hash(hashMap_priv_t ht, void *key_p, hash_l_t init){
-  uint64_t *key = key_p;
+  uint64_t *key = key_p + sizeof(hash_l_t); // remove the hash field
 
   size_t size = ht->size_k/sizeof(uint64_t);
 
