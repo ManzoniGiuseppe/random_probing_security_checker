@@ -55,6 +55,9 @@ def getInfo(maxCoeff, dir):
 
   (status, chosenCoeff) = getMaxCoeffStatus(dir)
 
+  if status != 0:
+    return (status, status)
+
   file = dir + str(chosenCoeff) + '.success'
 
   with open(file) as f:
@@ -66,12 +69,9 @@ def getInfo(maxCoeff, dir):
 
   p = findTreshold(coeffs)
 
-  if status == 0:
-    min = float(time.split(':')[0])
-    sec = float(time.split(':')[1][:-1])  # [:-1] to remove final s
-    return (p, min * 60 + sec)
-  else:
-    return (status, status)
+  min = float(time.split(':')[0])
+  sec = float(time.split(':')[1][:-1])  # [:-1] to remove final s
+  return (p, min * 60 + sec)
 
 
 
@@ -79,12 +79,13 @@ def getInfo(maxCoeff, dir):
 toPrint = []
 toPrint += [([], [], 'is', 'o', 'test', 'Is')]
 toPrint += [([], [], 'sum', '^', 'test', 'Sum')]
+toPrint += [([], [], 'mix', '+', 'test', 'Mix')]
 toPrint += [([], [], 'teo', 'x', 'test', 'Teo')]
 toPrint += [([], [], 'vraps', '.', 'vraps', 'Vraps')]
 
-timeouts = [0,0,0,0]
-otherfails = [0,0,0,0]
-uncompleted = [0,0,0,0]
+timeouts = [0] * len(toPrint)
+otherfails = [0] * len(toPrint)
+uncompleted = [0] * len(toPrint)
 
 for gadget in next(os.walk('test'))[1]:
   print('processing', gadget)
@@ -124,7 +125,7 @@ for i in range(len(toPrint)):
   print('  ' + toPrint[i][2] + ': ' + str(uncompleted[i]))
 
 plt.xlabel('time (s)')
-plt.ylabel('p : f(p)=p')
+plt.ylabel('max p : f(p)<=p')
 plt.xscale('log')
 plt.yscale('log')
 plt.legend()

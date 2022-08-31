@@ -2,9 +2,8 @@
 
 
 mainDir=test
-#allowedOp=':rpsIs:rpsSum:rpsTeo:rpcIs:rpcSum:rpcTeo:'
-allowedOp=':rpcTeo:'
-maxC=50
+allowedOp=':rpsIs:rpsSum:rpsTeo:rpcIs:rpcSum:rpcMix:rpcTeo:'
+maxC=4
 
 # 1: in file name
 # 2: in options

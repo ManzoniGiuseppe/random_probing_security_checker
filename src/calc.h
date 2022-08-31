@@ -10,6 +10,7 @@ coeff_t calc_rpsSum(void);
 coeff_t calc_rpsTeo(void);
 coeff_t calc_rpcIs(void);
 coeff_t calc_rpcSum(void);
+coeff_t calc_rpcMix(void);
 coeff_t calc_rpcTeo(void);
 
 
