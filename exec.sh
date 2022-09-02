@@ -18,8 +18,6 @@ while [ "$#" -gt 0 ]; do
     --rpsTeo) operations="${operations} -DWITH_RPS_TEO"; shift 1;;
     --rpc=*) operations="${operations} -DWITH_RPC_IS -DWITH_RPC_SUM -DWITH_RPC_TEO"; paramT="${1#*=}"; shift 1;;
     --rpcIs=*) operations="${operations} -DWITH_RPC_IS"; paramT="${1#*=}"; shift 1;;
-    --rpcSum=*) operations="${operations} -DWITH_RPC_SUM"; paramT="${1#*=}"; shift 1;;
-    --rpcMix=*) operations="${operations} -DWITH_RPC_MIX"; paramT="${1#*=}"; shift 1;;
     --rpcTeo=*) operations="${operations} -DWITH_RPC_TEO"; paramT="${1#*=}"; shift 1;;
 
     --no-compile) nocompile=1; shift 1;;

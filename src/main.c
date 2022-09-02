@@ -103,14 +103,6 @@ int main(){
   print_coeff(calc_rpcIs(),  "RPC", "M0", "   ");
 #endif
 
-#ifdef WITH_RPC_SUM
-  print_coeff(calc_rpcSum(), "RPC", "Mgm", "  ");
-#endif
-
-#ifdef WITH_RPC_MIX
-  print_coeff(calc_rpcMix(), "RPC", "Mmix", " ");
-#endif
-
 #ifdef WITH_RPC_TEO
   print_coeff(calc_rpcTeo(), "RPC", "Mteo", " ");
 #endif

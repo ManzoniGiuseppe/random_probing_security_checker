@@ -77,10 +77,10 @@ def getInfo(maxCoeff, dir):
 
 
 toPrint = []
-toPrint += [([], [], 'is', 'o', 'test', 'Is')]
-toPrint += [([], [], 'sum', '^', 'test', 'Sum')]
-toPrint += [([], [], 'mix', '+', 'test', 'Mix')]
-toPrint += [([], [], 'teo', 'x', 'test', 'Teo')]
+toPrint += [([], [], 'M0', 'o', 'test', 'Is')]
+if sys.argv[1] == 'rps':
+  toPrint += [([], [], 'MGM', '^', 'test', 'Sum')]
+toPrint += [([], [], 'Mteo', 'x', 'test', 'Teo')]
 toPrint += [([], [], 'vraps', '.', 'vraps', 'Vraps')]
 
 timeouts = [0] * len(toPrint)

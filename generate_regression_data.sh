@@ -2,7 +2,7 @@
 
 
 mainDir=test
-maxAllowedCoeff=3
+maxAllowedCoeff=5
 
 # 1: in file name
 # 2: in options
@@ -63,7 +63,7 @@ function execGadget(){
   done
 
   for t in $(seq 0 $[d - 1]) ; do
-    for op in $(echo -e "rpcIs\nrpcSum\nrpcMix\nrpcTeo") ; do
+    for op in $(echo -e "rpcIs\nrpcTeo") ; do
       findCoeffAndSaveResults "$file" "--${op}=$t" "$mainDir/$name/${op}=$t" "$maxCoeff"
     done
   done
