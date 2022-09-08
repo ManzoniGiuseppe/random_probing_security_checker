@@ -6,12 +6,11 @@ import subprocess
 import math
 import sys
 import os
+import matplotlib
 from matplotlib import pyplot as plt
 
 
-prefix = sys.argv[1]
-suffix = sys.argv[2]
-chosenMaxCoeff = int(sys.argv[3])
+# handle the gadgets
 
 def evalFn(p, coeff):
   ret = 0.0
@@ -76,18 +75,53 @@ def getInfo(maxCoeff, dir):
 
 
 
+
+# get info to plot
+
+
+
+prefix = sys.argv[1]
+suffix = sys.argv[2]
+chosenMaxCoeff = int(sys.argv[3])
+gadgetInfo = [('vrapsPaper_copy.sage', 'b'),
+              ('otpoePaper_copy.sage', 'tab:blue'),
+              ('otpoePaper_add.sage', 'limegreen'),
+              ('vrapsPaper_add_v1.sage', 'g'),
+              ('vrapsPaper_add_v2.sage', 'lime'),
+              ('isw_mul_generator.py=4', 'red'),
+              ('isw_mul_generator.py=3', 'darkred'),
+              ('vrapsPaper_mul.sage', 'tab:orange'),
+              ('otpoePaper_mul.sage', 'tomato'),
+              ('otpoePaper_refresh.sage', 'grey'),
+              ('refresh_ring.sage', 'black')]
+
+
 toPrint = []
-toPrint += [([], [], 'M0', 'o', 'test', 'Is')]
-if sys.argv[1] == 'rps':
-  toPrint += [([], [], 'MGM', '^', 'test', 'Sum')]
-toPrint += [([], [], 'Mteo', 'x', 'test', 'Teo')]
-toPrint += [([], [], 'vraps', '.', 'vraps', 'Vraps')]
+if prefix == 'rps':
+  toPrint += [[[], [], [], 'RPS_VRAPS', 'o', 'vraps', 'Vraps']]
+  toPrint += [[[], [], [], 'RPS_COR3', '+', 'test', 'Is']]
+  toPrint += [[[], [], [], 'RPS_COR2', '*', 'test', 'Sum']]
+  toPrint += [[[], [], [], 'RPS_COR1', 'x', 'test', 'Teo']]
+if prefix == 'rpc':
+  toPrint += [[[], [], [], 'SD_COR', 'o', 'test', 'Teo']]
+  toPrint += [[[], [], [], 'VRAPS_COR', '+', 'test', 'Is']]
+  toPrint += [[[], [], [], 'VRAPS_ORIG', 'x', 'vraps', 'Vraps']]
+
+
+toPrint_p = 0
+toPrint_time = 1
+toPrint_color = 2
+toPrint_name = 3
+toPrint_marker = 4
+toPrint_dir = 5
+toPrint_op = 6
+
 
 timeouts = [0] * len(toPrint)
 otherfails = [0] * len(toPrint)
 uncompleted = [0] * len(toPrint)
 
-for gadget in next(os.walk('test'))[1]:
+for (color, gadget) in enumerate([g for g,c in gadgetInfo]):
   print('processing', gadget)
   sagefile = 'gadgets/' + gadget
 
@@ -97,38 +131,67 @@ for gadget in next(os.walk('test'))[1]:
   maxCoeff = int(subprocess.check_output(['bash', '-c', './exec.sh -s ' + sagefile + ' -c 0 --no-compile | grep "^GCC FLAGS: " | sed "s/-D/\\n/g" | grep "^TOT_MUL_PROBES=" | sed "s/^TOT_MUL_PROBES=//"']))
 
   for i in range(len(toPrint)):
-    (p, time) = getInfo(maxCoeff, toPrint[i][4] + '/' + gadget + '/' + prefix + toPrint[i][5] + suffix + '/')
+    (p, time) = getInfo(maxCoeff, toPrint[i][toPrint_dir] + '/' + gadget + '/' + prefix + toPrint[i][toPrint_op] + suffix + '/')
     if p == -1:
       timeouts[i] += 1
-      print('  ' + toPrint[i][2] + ': timeout')
+      print('  ' + toPrint[i][toPrint_name] + ': timeout')
     elif p == -2:
       otherfails[i] += 1
-      print('  ' + toPrint[i][2] + ': otherfail')
+      print('  ' + toPrint[i][toPrint_name] + ': otherfail')
     elif p == -3:
       uncompleted[i] += 1
-      print('  ' + toPrint[i][2] + ': uncompleted')
+      print('  ' + toPrint[i][toPrint_name] + ': uncompleted')
     else:
-      toPrint[i] = (toPrint[i][0] + [p], toPrint[i][1] + [time]) + toPrint[i][2:6]
-      print('  ' + toPrint[i][2] + ': ' + str(p) + ' - ' + str(time))
-
-for it in toPrint:
-  plt.scatter(it[1], it[0], label=it[2], marker=it[3])
+      toPrint[i][toPrint_p] += [p]
+      toPrint[i][toPrint_time] += [time]
+      toPrint[i][toPrint_color] += [color]
+      print('  ' + toPrint[i][toPrint_name] + ': ' + str(p) + ' - ' + str(time))
 
 print('timeouts:')
 for i in range(len(toPrint)):
-  print('  ' + toPrint[i][2] + ': ' + str(timeouts[i]))
+  print('  ' + toPrint[i][toPrint_name] + ': ' + str(timeouts[i]))
 print('otherfails:')
 for i in range(len(toPrint)):
-  print('  ' + toPrint[i][2] + ': ' + str(otherfails[i]))
+  print('  ' + toPrint[i][toPrint_name] + ': ' + str(otherfails[i]))
 print('uncompleted:')
 for i in range(len(toPrint)):
-  print('  ' + toPrint[i][2] + ': ' + str(uncompleted[i]))
+  print('  ' + toPrint[i][toPrint_name] + ': ' + str(uncompleted[i]))
 
-plt.xlabel('time (s)')
-plt.ylabel('max p : f(p)<=p')
-plt.xscale('log')
-plt.yscale('log')
-plt.legend()
-plt.grid(which='both')
-plt.show()
+
+
+# scatterplot
+
+fig, ax = plt.subplots(figsize=(20, 15))
+
+ax.set_xlabel('time (s)')
+ax.set_ylabel('max p : f(p)<=p')
+ax.set_xscale('log')
+ax.set_yscale('log')
+ax.grid(which='both')
+
+cmap, norm = matplotlib.colors.from_levels_and_colors(np.arange(0, len(gadgetInfo)+1), [c for g,c in gadgetInfo])
+
+scatter = []
+for it in toPrint:
+  scatter += [ ax.scatter(x=it[toPrint_time], y=it[toPrint_p], c=it[toPrint_color], label=it[toPrint_name], marker=it[toPrint_marker], cmap=cmap, norm=norm) ]
+
+
+
+# add legend
+
+box = ax.get_position()
+ax.set_position([box.x0, box.y0, box.width * 0.9, box.height])
+
+
+legend1 = ax.legend(title="Implementation", loc='upper left', bbox_to_anchor=(1, 0.5))
+ax.add_artist(legend1)
+
+legend_elements = scatter[1].legend_elements()
+
+legend2 = ax.legend(legend_elements[0], [gadgetInfo[int(i[14:-2])][0] for i in legend_elements[1]], title="Gadget", loc='lower left', bbox_to_anchor=(1, 0.5))
+ax.add_artist(legend2)
+
+# save
+
+plt.savefig('toDelete_out.pdf', bbox_inches='tight')#, pad_inches=0)
 
