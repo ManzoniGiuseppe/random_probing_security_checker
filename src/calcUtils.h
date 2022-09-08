@@ -18,7 +18,7 @@ shift_t calcUtils_maxSharesIn(col_t value);
 
 #define ITERATE_PROBE_(RowElseProbe, Var, Next, Code)  { \
     hash_s_t _size = RowElseProbe ? rowTransform_transform_hash_size() : rowTransform_row_hash_size(); \
-    uint8_t *_inited = mem_calloc(sizeof(uint8_t), (_size +7)/8, "calcUtils: ITERATE_PROBE_AND_OUT"); \
+    uint8_t *_inited = mem_calloc(sizeof(uint8_t), (_size +7)/8, "calcUtils: ITERATE_PROBE_"); \
     row_t Var = row_first(); \
     do{ \
       hash_s_t _h = RowElseProbe ? rowTransform_transform_hash(Var) : rowTransform_row_hash(Var); \
@@ -27,7 +27,7 @@ shift_t calcUtils_maxSharesIn(col_t value);
       if( ((_inited[_byte] >> _bit) & 1) == 0 ){ \
         _inited[_byte] |= 1 << _bit; \
         Code  \
-      } \
+      }  \
     }while(Next(& Var)); \
     mem_free(_inited); \
   }

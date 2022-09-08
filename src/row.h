@@ -16,6 +16,7 @@ typedef struct {
 
 shift_t row_maxShares(row_t r) __attribute__ ((const));
 row_t row_singleInput(shift_t input) __attribute__ ((const));
+bool row_hasInput(row_t r, shift_t input) __attribute__ ((const));
 bool row_eq(row_t r0, row_t r1) __attribute__ ((const));
 row_t row_or(row_t r0, row_t r1) __attribute__ ((const));
 row_t row_and(row_t r0, row_t r1) __attribute__ ((const));

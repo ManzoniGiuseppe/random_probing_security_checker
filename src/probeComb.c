@@ -93,9 +93,7 @@ double probeComb_getProbesMulteplicity(probeComb_t curr_comb){
 void probeComb_firstWhoseImageIs(row_t highest_row, probeComb_t ret_comb, shift_t *ret_count){
   *ret_count = 0;
   for(shift_t i = 0; i < NUM_PROBES; i++){
-    row_t it = row_singleInput(i + NUM_OUTS * D);
-    ret_comb[i] = row_eq(it, row_and(highest_row, it));
-    *ret_count += ret_comb[i];
+    *ret_count += ret_comb[i] = row_hasInput(highest_row, i + NUM_OUTS * D);
   }
   if(*ret_count > MAX_COEFF) FAIL("probeComb: more probes than MAX_COEFF")
 }

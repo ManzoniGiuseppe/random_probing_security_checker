@@ -37,7 +37,7 @@ static bool rowData_anyNot0(row_t row, int ii_index){
 }
 
 static bool probeData_anyNot0(row_t row, int ii_index);
-static void probeData_init(row_t row, __attribute__((unused)) col_t ii, int ii_index){
+static void probeData_init(row_t row, int ii_index){
   bool *anyNot0 = data_get(probeData, rowTransform_row_hash(row), ii_index, probe_size);
 
   if(rowData_anyNot0(row, ii_index)){
@@ -92,7 +92,7 @@ coeff_t calc_rpcIs(void){
   probeData = mem_calloc(sizeof(bool), probe_size * II_USED_COMB, "probeData for calc_rpcIs");
   ITERATE_PROBE_AND_OUT(0, {
     ITERATE_II({
-        probeData_init(probeAndOutput, ii, ii_index);
+        probeData_init(probeAndOutput, ii_index);
     })
   })
   mem_free(rowData);
@@ -108,12 +108,8 @@ coeff_t calc_rpcIs(void){
     do{
       row_t row = row_or(probe, output);
       bool is = probeData_is(row);
-      if(is != 0){
-        ITERATE_OVER_PROBES_WHOSE_IMAGE_IS(row, probeComb, coeffNum, {
-          double mul = probeComb_getProbesMulteplicity(probeComb);
-          curr.values[coeffNum] += mul;
-        })
-      }
+      if(is != 0)
+        curr = coeff_add(curr, calcUtils_totProbeMulteplicity(row));
     }while(row_tryNextProbe(& probe));
 
     ret = coeff_max(ret, curr);

@@ -24,7 +24,7 @@ shift_t row_maxShares(row_t r){
   row_value_t lowest = r.values[0];
   row_value_t mask = (1ll << D)-1;
   for(int o = 0; o < NUM_OUTS; o++){
-    shift_t val = __builtin_popcountll(lowest & (mask << o*D));
+    shift_t val = __builtin_popcountll(lowest & (mask << (o*D)));
     max = MAX(max, val);
   }
   return max;
@@ -33,6 +33,9 @@ row_t row_singleInput(shift_t input){
   row_t ret = (row_t){ {0} };
   ret.values[input/ROW_VALUE_BITS] = 1ll << (input % ROW_VALUE_BITS);
   return ret;
+}
+bool row_hasInput(row_t r, shift_t input){
+  return ((r.values[input/ROW_VALUE_BITS] >> (input % ROW_VALUE_BITS)) & 1) == 1;
 }
 row_t row_first(){
   return (row_t){ {0} };
@@ -87,13 +90,15 @@ static inline row_t row_add(row_t r, row_value_t toAdd, shift_t from){
 
 static bool row_tryNextOut__i(row_t *curr, shift_t o){
   row_value_t outMask = ((1ll << D)-1) << (o*D);
+  row_value_t upperTOutMask = ((1ll << T)-1) << ((o+1)*D - T);
   row_value_t one = 1ll << (o*D);
 
-  row_value_t outs = curr->values[0] & outMask;
-  if(__builtin_popcountll(outs >> (o*D + D-T)) == T){
+  if(__builtin_popcountll(curr->values[0] & upperTOutMask) == T){
     curr->values[0] &= ~outMask; // reset this out
     return 0; // all 1s are at the top -> no output conmbinations left
   }
+
+  row_value_t outs = curr->values[0] & outMask;
 
   if(__builtin_popcountll(outs+one) <= T){ // if incrementing leads to a valid result, just increment it
     curr->values[0] += one;
@@ -113,8 +118,11 @@ bool row_tryNextOut(row_t *curr){
 }
 
 bool row_tryNextProbe(row_t *curr){
+  row_value_t lowestProbeBit = 1ll << (NUM_OUTS * D);
+  if((curr->values[0] & (lowestProbeBit-1)) != 0) FAIL("row.c: BUG: row_tryNextProbe's parameter includes an output bit\n");
+
   if(row_numOnes(*curr) == NUM_PROBES || MAX_COEFF == 0) return 0; // end as we covered all probes.
-  row_t next = row_add(*curr, 1ll << (NUM_OUTS * D), 0); // just increment the probe combination
+  row_t next = row_add(*curr, lowestProbeBit, 0); // just increment the probe combination
   if(row_numOnes(next) <= MAX_COEFF){
     *curr = next;
     return 1;
