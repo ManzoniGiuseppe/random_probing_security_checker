@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 
 
@@ -180,6 +181,7 @@ bdd_t bdd_val_single(void* storage, shift_t inputBit){
 #define CACHE_OPTYPE__XOR  1
 #define CACHE_OPTYPE__AND  2
 #define CACHE_OPTYPE__SUM  4
+#define CACHE_OPTYPE__MERGE_SUM 8
 
 static inline hash_t cache__h(uint64_t opType, bdd_t sub0, bdd_t sub1){
   hash_t hash0 = (sub0 * 11) ^ ROT(sub0, 17) ^ (ROT(sub0, 35) * 12);
@@ -365,20 +367,88 @@ bdd_t bdd_op_xor(void *storage, bdd_t val0, bdd_t val1){
 // -- bdd_op_getTransformWithoutRnd
 
 
+#define BDD_FROM_CONST(x)   ((x)<0 ? bdd_op_neg((bdd_t)-(x)) : (bdd_t)(x))
+#define BDD_TO_CONST(x)   (bdd_is_negated(x) ? -(int64_t)bdd_op_neg(x) : (int64_t)(x))
+
+static inline bdd_node_t bdd_get_node_pos(bdd_storage_t *s, bdd_t val){
+  bdd_node_t a = bdd_get_node(s, val);
+
+  if(bdd_is_negated(val)){
+    a.v[0] = bdd_op_neg(a.v[0]);
+    a.v[1] = bdd_op_neg(a.v[1]);
+  }
+  return a;
+}
+
 static fixed_cell_t bdd_op_getSumRNDs__sum(bdd_storage_t *s, bdd_t val){ // do the sum recursively
   if(bdd_is_negated(val)) return -bdd_op_getSumRNDs__sum(s, bdd_op_neg(val));
   if(!bdd_is_node(val)) return -(1ll << NUM_RANDOMS);
 
-  uint64_t value = 0;
+  bdd_t value = 0;
   if(!cache_contains(s, CACHE_OPTYPE__SUM, val, val)){
     bdd_node_t a = bdd_get_node(s, val);
-    value = (bdd_op_getSumRNDs__sum(s, a.v[0]) + bdd_op_getSumRNDs__sum(s, a.v[1]))/2;  // /2 as each covers half the column space
+    fixed_cell_t cell = (bdd_op_getSumRNDs__sum(s, a.v[0]) + bdd_op_getSumRNDs__sum(s, a.v[1]))/2;  // /2 as each covers half the column space
+    value = BDD_FROM_CONST(cell);
   }
-  return cache_get_or_set(s, CACHE_OPTYPE__SUM, val, val, value);
+  bdd_t ret = cache_get_or_set(s, CACHE_OPTYPE__SUM, val, val, value);
+  if(bdd_is_node(ret)) FAIL("bdd_op_getSumRNDs__sum BUG\n");
+  return BDD_TO_CONST(ret);
 }
 
+static bdd_t bdd_op_getSumRNDs__i(bdd_storage_t *s, bdd_t val);
 
-static void bdd_op_getSumRNDs__i(bdd_storage_t *s, bdd_t val, shift_t ins_missing, bool is_pos, fixed_cell_t *ret){ // recursively travel the BDD until you get to the randoms
+static bdd_t bdd_op_getSumRNDs__i_uncached(bdd_storage_t *s, bdd_t val){
+  shift_t input = bdd_get_input(val);
+
+  if(!bdd_is_node(val) || input >= NUM_INS*D){
+    fixed_cell_t v = bdd_op_getSumRNDs__sum(s, val);
+    return BDD_FROM_CONST(v);
+  }
+
+  bdd_node_t a = bdd_get_node_pos(s, val);
+
+  bdd_t v0 = bdd_op_getSumRNDs__i(s, a.v[0]);
+  bdd_t v1 = bdd_op_getSumRNDs__i(s, a.v[1]);
+
+  return bdd_new_node(s, v0, v1, input);
+}
+
+static bdd_t bdd_op_getSumRNDs__i(bdd_storage_t *s, bdd_t val){
+  bdd_t value = 0;
+  if(!cache_contains(s, CACHE_OPTYPE__MERGE_SUM, val, val))
+    value = bdd_op_getSumRNDs__i_uncached(s, val);
+  return cache_get_or_set(s, CACHE_OPTYPE__MERGE_SUM, val, val, value);
+}
+
+static void bdd_op_getSumRNDs__plain(bdd_storage_t *s, bdd_t val, shift_t ins_missing, fixed_cell_t *ret){ // recursively travel the BDD until you get to the randoms
+  if(ins_missing == 0){
+    if(bdd_is_node(val)) FAIL("bdd_op_getSumRNDs__plain BUG\n");
+    *ret = BDD_TO_CONST(val);
+    return;
+  }
+
+  bdd_node_t a;
+  if(!bdd_is_node(val)){
+    a.v[0] = a.v[1] = val;
+  } else if(bdd_get_input(val) != (uint64_t) NUM_INS*D-ins_missing){ // the two a.v are the same.
+    a.v[0] = a.v[1] = val;
+  } else {
+    a = bdd_get_node_pos(s, val);
+  }
+
+  bdd_op_getSumRNDs__plain(s, a.v[0], ins_missing-1, ret);
+  bdd_op_getSumRNDs__plain(s, a.v[1], ins_missing-1, ret + (1ll << (NUM_INS*D-ins_missing)));
+}
+
+// get for each input, the sum of the values, with true=1, false=-1.
+static inline void bdd_op_getSumRNDs(bdd_storage_t *s, bdd_t val, fixed_cell_t ret[NUM_NORND_COLS]){
+  bdd_t v = bdd_op_getSumRNDs__i(s, val);
+  bdd_op_getSumRNDs__plain(s, v, NUM_INS*D, ret);
+}
+
+/*
+
+static void bdd_op_getSumRNDs__i_v2(bdd_storage_t *s, bdd_t val, shift_t ins_missing, bool is_pos, fixed_cell_t *ret){ // recursively travel the BDD until you get to the randoms
   if(ins_missing == 0){
     if(!is_pos) val = bdd_op_neg(val);
     *ret = bdd_op_getSumRNDs__sum(s, val);
@@ -399,14 +469,16 @@ static void bdd_op_getSumRNDs__i(bdd_storage_t *s, bdd_t val, shift_t ins_missin
     a = bdd_get_node(s, val);
   }
 
-  bdd_op_getSumRNDs__i(s, a.v[0], ins_missing-1, is_pos, ret);
-  bdd_op_getSumRNDs__i(s, a.v[1], ins_missing-1, is_pos, ret + (1ll << (NUM_INS*D-ins_missing)));
+  bdd_op_getSumRNDs__i_v2(s, a.v[0], ins_missing-1, is_pos, ret);
+  bdd_op_getSumRNDs__i_v2(s, a.v[1], ins_missing-1, is_pos, ret + (1ll << (NUM_INS*D-ins_missing)));
 }
 
 // get for each input, the sum of the values, with true=1, false=-1.
-static inline void bdd_op_getSumRNDs(bdd_storage_t *s, bdd_t val, fixed_cell_t ret[NUM_NORND_COLS]){
-  bdd_op_getSumRNDs__i(s, val, NUM_INS*D, 1, ret);
+static inline void bdd_op_getSumRNDs_v2(bdd_storage_t *s, bdd_t val, fixed_cell_t ret[NUM_NORND_COLS]){
+  bdd_op_getSumRNDs__i_v2(s, val, NUM_INS*D, 1, ret);
 }
+
+*/
 
 // Fast Walsh-Hadamard transform
 static void inPlaceTransform(fixed_cell_t *tr, col_t size){ // tr must have 1 for false, -1 for true, can accept partially transformed inputs too
@@ -425,5 +497,6 @@ static void inPlaceTransform(fixed_cell_t *tr, col_t size){ // tr must have 1 fo
 void bdd_get_transformWithoutRnd(void *storage, bdd_t val, fixed_cell_t ret[NUM_NORND_COLS]){
   bdd_storage_t *s = storage;
   bdd_op_getSumRNDs(s, val, ret);
+
   inPlaceTransform(ret, NUM_NORND_COLS);
 }
