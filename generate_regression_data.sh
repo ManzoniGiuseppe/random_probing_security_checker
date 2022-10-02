@@ -63,7 +63,7 @@ function execGadget(){
 
   for t in $(seq 0 $[d - 1]) ; do
 #  t=1 # ignore the others.
-    for op in $(echo -e "rpcIs\nrpcTeo") ; do
+    for op in $(echo -e "rpcIs\nrpcW\nrpcTeo") ; do
       findCoeffAndSaveResults "$file" "--${op}=$t" "$mainDir/$name/${op}=$t" "$maxCoeff"
     done
   done

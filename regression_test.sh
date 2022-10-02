@@ -2,7 +2,7 @@
 
 
 mainDir=test
-allowedOp=':rpsIs:rpsSum:rpsTeo:rpcIs:rpcTeo:'
+allowedOp=':rpsIs:rpsSum:rpsTeo:rpcIs:rpcW:rpcTeo:'
 maxC=4
 
 # 1: in file name
@@ -60,7 +60,7 @@ function execGadget(){
   done
 
   for t in $(seq 0 $[d - 1]) ; do
-    for op in $(echo -e "rpcIs\nrpcTeo") ; do
+    for op in $(echo -e "rpcIs\nrpcW\nrpcTeo") ; do
       if echo $allowedOp | grep -a -q ":$op:" ; then
         findCoeffAndSaveResults "$file" "--${op}=$t" "$mainDir/$name/${op}=$t"
       fi

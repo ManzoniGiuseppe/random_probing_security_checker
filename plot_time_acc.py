@@ -105,6 +105,7 @@ if prefix == 'rps':
 if prefix == 'rpc':
   toPrint += [[[], [], [], 'SD_COR', 'o', 'test', 'Teo']]
   toPrint += [[[], [], [], 'VRAPS_COR', '+', 'test', 'Is']]
+  toPrint += [[[], [], [], 'W', '^', 'test', 'W']]
   toPrint += [[[], [], [], 'VRAPS_ORIG', 'x', 'vraps', 'Vraps']]
 
 

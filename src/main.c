@@ -24,7 +24,6 @@
 
 
 
-
 static void calculateAllRowTransform(){
   printf("calculating row transforms\n");
 
@@ -102,6 +101,10 @@ int main(){
 
 #ifdef WITH_RPC_IS
   print_coeff(calc_rpcIs(),  "RPC", "M0", "   ");
+#endif
+
+#ifdef WITH_RPC_W
+  print_coeff(calc_rpcW(),  "RPC", "MW", "   ");
 #endif
 
 #ifdef WITH_RPC_TEO
