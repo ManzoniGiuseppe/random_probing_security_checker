@@ -20,7 +20,7 @@ static void rowData_init(row_t row, col_t ii, int ii_index){
   fixed_cell_t transform[NUM_NORND_COLS];
   rowTransform_get(row, transform);
 
-  bool *anyNot0 = data_get(rowData, rowTransform_transform_hash(row), ii_index, row_size);
+  bool *anyNot0 = data_get(rowData, rowTransform_row_hash(row), ii_index, row_size);
 
   for(int i = 0; i < NUM_NORND_COLS; i++){
     if((i &~ ii) != 0 && transform[i] != 0){
@@ -33,12 +33,12 @@ static void rowData_init(row_t row, col_t ii, int ii_index){
 }
 
 static bool rowData_anyNot0(row_t row, int ii_index){
-  return *data_get(rowData, rowTransform_transform_hash(row), ii_index, row_size);
+  return *data_get(rowData, rowTransform_row_hash(row), ii_index, row_size);
 }
 
 static bool probeData_anyNot0(row_t row, int ii_index);
 static void probeData_init(row_t row, int ii_index){
-  bool *anyNot0 = data_get(probeData, rowTransform_row_hash(row), ii_index, probe_size);
+  bool *anyNot0 = data_get(probeData, rowTransform_subRow_hash(row), ii_index, probe_size);
 
   if(rowData_anyNot0(row, ii_index)){
     *anyNot0 = 1;
@@ -57,7 +57,7 @@ static void probeData_init(row_t row, int ii_index){
 }
 
 static bool probeData_anyNot0(row_t row, int ii_index){
-  return *data_get(probeData, rowTransform_row_hash(row), ii_index, probe_size);
+  return *data_get(probeData, rowTransform_subRow_hash(row), ii_index, probe_size);
 }
 
 static bool probeData_is(row_t row){
@@ -76,23 +76,23 @@ static bool probeData_is(row_t row){
 
 coeff_t calc_rpcIs(void){
   printf("rpcIs: 0/3\n");
-  row_size = rowTransform_transform_hash_size();
-  probe_size = rowTransform_row_hash_size();
+  row_size = rowTransform_row_hash_size();
+  probe_size = rowTransform_subRow_hash_size();
 
   // to store if the wanted row as any != 0 in the appropriate columns.
   rowData = mem_calloc(sizeof(bool), row_size * II_USED_COMB, "rowData for calc_rpcIs");
-  ITERATE_PROBE_AND_OUT(1, {
+  ITERATE_PROBE_AND_OUT(IPT_ROW, {
     ITERATE_II({
-        rowData_init(probeAndOutput, ii, ii_index);
+        rowData_init(probeAndOut, ii, ii_index);
     })
   })
   printf("rpcIs: 1/3\n");
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
   probeData = mem_calloc(sizeof(bool), probe_size * II_USED_COMB, "probeData for calc_rpcIs");
-  ITERATE_PROBE_AND_OUT(0, {
+  ITERATE_PROBE_AND_OUT(IPT_SUBROW, {
     ITERATE_II({
-        probeData_init(probeAndOutput, ii_index);
+        probeData_init(probeAndOut, ii_index);
     })
   })
   mem_free(rowData);

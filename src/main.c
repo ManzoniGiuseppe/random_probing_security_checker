@@ -65,11 +65,12 @@ static void calculateAllRowTransform(){
   bdd_storage_free(bdd);
   rowTransform_finalizze();
 
-  printf("rowTransform, transform: used=%f%%\n",  rowTransform_transform_dbg_fill() * 100);
-  printf("rowTransform, transform: hashConflict=%f%%\n",  rowTransform_transform_dbg_hashConflictRate() * 100);
-  printf("rowTransform, rows: used=%f%%\n", rowTransform_row_dbg_allocRate() * 100);
-  printf("rowTransform, assoc: used=%f%%\n",  rowTransform_assoc_dbg_fill() * 100);
-  printf("rowTransform, assoc: hashConflict=%f%%\n",  rowTransform_assoc_dbg_hashConflictRate() * 100);
+  printf("rowTransform, row: used=%f%%\n",  rowTransform_row_dbg_fill() * 100);
+  printf("rowTransform, row: usedOfTot=%f%%\n",  rowTransform_row_dbg_fillOfTot() * 100);
+  printf("rowTransform, row: hashConflict=%f%%\n",  rowTransform_row_dbg_hashConflictRate() * 100);
+  printf("rowTransform, subRow: used=%f%%\n", rowTransform_subRow_dbg_allocRate() * 100);
+  printf("rowTransform, unique: used=%f%%\n",  rowTransform_unique_dbg_fill() * 100);
+  printf("rowTransform, unique: hashConflict=%f%%\n",  rowTransform_unique_dbg_hashConflictRate() * 100);
 }
 
 
@@ -107,11 +108,12 @@ int main(){
   print_coeff(calc_rpcTeo(), "RPC", "Mteo", " ");
 #endif
 
-  printf("rowTransform, transform: used=%f%%\n",  rowTransform_transform_dbg_fill() * 100);
-  printf("rowTransform, transform: hashConflict=%f%%\n",  rowTransform_transform_dbg_hashConflictRate() * 100);
-  printf("rowTransform, rows: used=%f%%\n", rowTransform_row_dbg_allocRate() * 100);
-  printf("rowTransform, assoc: used=%f%%\n",  rowTransform_assoc_dbg_fill() * 100);
-  printf("rowTransform, assoc: hashConflict=%f%%\n",  rowTransform_assoc_dbg_hashConflictRate() * 100);
+  printf("rowTransform, row: used=%f%%\n",  rowTransform_row_dbg_fill() * 100);
+  printf("rowTransform, row: usedOfTot=%f%%\n",  rowTransform_row_dbg_fillOfTot() * 100);
+  printf("rowTransform, row: hashConflict=%f%%\n",  rowTransform_row_dbg_hashConflictRate() * 100);
+  printf("rowTransform, subRow: used=%f%%\n", rowTransform_subRow_dbg_allocRate() * 100);
+  printf("rowTransform, unique: used=%f%%\n",  rowTransform_unique_dbg_fill() * 100);
+  printf("rowTransform, unique: hashConflict=%f%%\n",  rowTransform_unique_dbg_hashConflictRate() * 100);
 
   return 0;
 }

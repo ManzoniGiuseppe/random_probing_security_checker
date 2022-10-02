@@ -42,11 +42,11 @@ static size_t probe_size;
 
 
 static inline fixed_rowsum_t* rowData_get(row_t row, int ii_index, col_t x){
-  return & rowData[x + NUM_NORND_COLS * (rowTransform_transform_hash(row) + row_size * ii_index)];
+  return & rowData[x + NUM_NORND_COLS * (rowTransform_row_hash(row) + row_size * ii_index)];
 }
 
 static inline double* probeData_min_get(row_t row){
-  return & probeData_min[rowTransform_row_hash(row)];
+  return & probeData_min[rowTransform_subRow_hash(row)];
 }
 
 static int xor_col(col_t v1, col_t v2){
@@ -138,15 +138,15 @@ static coeff_t sumOfProbes(row_t out){
 
 coeff_t calc_rpcTeo(void){
   printf("rpcTeo: 0/3\n");
-  row_size = rowTransform_transform_hash_size();
-  probe_size = rowTransform_row_hash_size();
+  row_size = rowTransform_row_hash_size();
+  probe_size = rowTransform_subRow_hash_size();
 
   // to store if the wanted row as any != 0 in the appropriate columns.
   rowData = mem_calloc(sizeof(fixed_rowsum_t), row_size * II_USED_COMB * NUM_NORND_COLS,  "rowData for calc_rpcTeo");
-  ITERATE_PROBE_AND_OUT(1, {
+  ITERATE_PROBE_AND_OUT(IPT_ROW, {
     ITERATE_II({
       ITERATE_X_ACT({
-        rowData_init(probeAndOutput, ii, ii_index, x);
+        rowData_init(probeAndOut, ii, ii_index, x);
       })
     })
   })
@@ -154,8 +154,8 @@ coeff_t calc_rpcTeo(void){
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
   probeData_min = mem_calloc(sizeof(double), probe_size, "probeData_min for calc_rpcTeo");
-  ITERATE_PROBE_AND_OUT(0, {
-    probeData_init(probeAndOutput);
+  ITERATE_PROBE_AND_OUT(IPT_SUBROW, {
+    probeData_init(probeAndOut);
   })
   mem_free(rowData);
   printf("rpcTeo: 2/3\n");

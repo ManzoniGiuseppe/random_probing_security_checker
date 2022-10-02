@@ -29,7 +29,7 @@ static size_t row_size;
 static size_t probe_size;
 
 static void rowData_init(row_t row){
-  fixed_sum_t *it = & rowData[rowTransform_transform_hash(row)];
+  fixed_sum_t *it = & rowData[rowTransform_row_hash(row)];
 
   fixed_cell_t transform[NUM_NORND_COLS];
   rowTransform_get(row, transform);
@@ -42,13 +42,13 @@ static void rowData_init(row_t row){
 }
 
 static fixed_sum_t rowData_sumAbs(row_t row){
-  return rowData[rowTransform_transform_hash(row)];
+  return rowData[rowTransform_row_hash(row)];
 }
 
 // second sum (without multeplicity)
 static fixed_sum_t probeData_sumAbs(row_t row);
 static void probeData_init(row_t row){
-  fixed_sum_t *it = & probeData[rowTransform_row_hash(row)];
+  fixed_sum_t *it = & probeData[rowTransform_subRow_hash(row)];
 
   fixed_sum_t onlyRow = rowData_sumAbs(row);
   if(onlyRow == MAX_FIXED_SUM){
@@ -74,7 +74,7 @@ static void probeData_init(row_t row){
 }
 
 static fixed_sum_t probeData_sumAbs(row_t row){
-  return probeData[rowTransform_row_hash(row)];
+  return probeData[rowTransform_subRow_hash(row)];
 }
 
 
@@ -93,19 +93,19 @@ static fixed_sum_t probeData_min(probeComb_t probes){
 
 coeff_t calc_rpsSum(void){
   printf("rpsSum: 0/3\n");
-  row_size = rowTransform_transform_hash_size();
-  probe_size = rowTransform_row_hash_size();
+  row_size = rowTransform_row_hash_size();
+  probe_size = rowTransform_subRow_hash_size();
 
   // to store if the wanted row as any != 0 in the appropriate columns.
   rowData = mem_calloc(sizeof(fixed_sum_t), row_size, "rowData for calc_rpsSum");
-  ITERATE_PROBE(1, {
+  ITERATE_PROBE(IPT_ROW, {
     rowData_init(probe);
   })
   printf("rpsSum: 1/3\n");
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
   probeData = mem_calloc(sizeof(fixed_sum_t), probe_size, "probeData for calc_rpsSum");
-  ITERATE_PROBE(0, {
+  ITERATE_PROBE(IPT_SUBROW, {
     probeData_init(probe);
   })
   mem_free(rowData);

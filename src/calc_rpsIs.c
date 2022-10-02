@@ -16,7 +16,7 @@ static void rowData_init(row_t row){
   fixed_cell_t transform[NUM_NORND_COLS];
   rowTransform_get(row, transform);
 
-  bool *anyNot0 = & rowData[rowTransform_transform_hash(row)];
+  bool *anyNot0 = & rowData[rowTransform_row_hash(row)];
 
   for(int i = 1; i < (1ll<<NUM_INS); i++){
     if(transform[calcUtils_intExpandByD(i)] != 0){
@@ -29,12 +29,12 @@ static void rowData_init(row_t row){
 }
 
 static bool rowData_anyNot0(row_t row){
-  return rowData[rowTransform_transform_hash(row)];
+  return rowData[rowTransform_row_hash(row)];
 }
 
 static bool probeData_anyNot0(row_t row);
 static void probeData_init(row_t row){
-  bool *anyNot0 = & probeData[rowTransform_row_hash(row)];
+  bool *anyNot0 = & probeData[rowTransform_subRow_hash(row)];
 
   if(rowData_anyNot0(row)){
     *anyNot0 = 1;
@@ -54,25 +54,25 @@ static void probeData_init(row_t row){
 }
 
 static bool probeData_anyNot0(row_t row){
-  return probeData[rowTransform_row_hash(row)];
+  return probeData[rowTransform_subRow_hash(row)];
 }
 
 
 coeff_t calc_rpsIs(void){
   printf("rpsIs: 0/3\n");
-  row_size = rowTransform_transform_hash_size();
-  probe_size = rowTransform_row_hash_size();
+  row_size = rowTransform_row_hash_size();
+  probe_size = rowTransform_subRow_hash_size();
 
   // to store if the wanted row as any != 0 in the appropriate columns.
   rowData = mem_calloc(sizeof(bool), row_size, "rowData for calc_rpsIs");
-  ITERATE_PROBE(1, {
+  ITERATE_PROBE(IPT_ROW, {
     rowData_init(probe);
   })
   printf("rpsIs: 1/3\n");
 
   // like for the row, but it acts on any sub-row, capturing the whole probe.
   probeData = mem_calloc(sizeof(bool), probe_size, "probeData for calc_rpsIs");
-  ITERATE_PROBE(0, {
+  ITERATE_PROBE(IPT_SUBROW, {
     probeData_init(probe);
   })
   mem_free(rowData);

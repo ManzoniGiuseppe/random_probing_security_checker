@@ -130,7 +130,7 @@ if [ $rows_used_bits -ge 31 ] ; then
   echo "Too much ram would need to be allocated! 2^$[rows_used_bits + numUndIns * d * 2 + 2 ] B " >&2
   exit 1
 fi
-gcc_flags_macro="${operations} -DNUM_INS=${numUndIns} -DNUM_OUTS=${numUndOuts} -DD=${d} -DNUM_RANDOMS=${numRnd} -DNUM_PROBES=${numProb} -DT=${paramT} -DMAX_COEFF=${paramMaxCoeff} -DROWTRANSFORM_ASSOC_BITS=${rows_used_bits} -DTOT_MUL_PROBES=${tot_mul_probes} -DRPCTEO_HTPROBE_BITS=12 -DBDD_STORAGE_BITS=24 -DBDD_CACHE_BITS=24 -DBDD_CACHE_WAYS=4 -DNUM_TOT_INS=${numIns} -DNUM_TOT_OUTS=${numOuts} -DNUM_NORND_COLS=${num_nornd_cols} -DII_USED_COMB=${ii_used_comb} -DFN_CMP_STEP=0.0001"
+gcc_flags_macro="${operations} -DNUM_INS=${numUndIns} -DNUM_OUTS=${numUndOuts} -DD=${d} -DNUM_RANDOMS=${numRnd} -DNUM_PROBES=${numProb} -DT=${paramT} -DMAX_COEFF=${paramMaxCoeff} -DROWTRANSFORM_UNIQUE_BITS=${rows_used_bits} -DTOT_MUL_PROBES=${tot_mul_probes} -DRPCTEO_HTPROBE_BITS=12 -DBDD_STORAGE_BITS=24 -DBDD_CACHE_BITS=24 -DBDD_CACHE_WAYS=4 -DNUM_TOT_INS=${numIns} -DNUM_TOT_OUTS=${numOuts} -DNUM_NORND_COLS=${num_nornd_cols} -DII_USED_COMB=${ii_used_comb} -DFN_CMP_STEP=0.0001"
 
 cat > $dir/gadget.c << EOF
 #include "gadget.h"
