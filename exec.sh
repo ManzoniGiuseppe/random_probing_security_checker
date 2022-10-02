@@ -16,7 +16,7 @@ while [ "$#" -gt 0 ]; do
     --rpsIs) operations="${operations} -DWITH_RPS_IS"; shift 1;;
     --rpsSum) operations="${operations} -DWITH_RPS_SUM"; shift 1;;
     --rpsTeo) operations="${operations} -DWITH_RPS_TEO"; shift 1;;
-    --rpc=*) operations="${operations} -DWITH_RPC_IS -DWITH_RPC_SUM -DWITH_RPC_TEO"; paramT="${1#*=}"; shift 1;;
+    --rpc=*) operations="${operations} -DWITH_RPC_IS -DWITH_RPC_TEO"; paramT="${1#*=}"; shift 1;;
     --rpcIs=*) operations="${operations} -DWITH_RPC_IS"; paramT="${1#*=}"; shift 1;;
     --rpcTeo=*) operations="${operations} -DWITH_RPC_TEO"; paramT="${1#*=}"; shift 1;;
 
