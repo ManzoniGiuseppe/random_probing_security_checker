@@ -90,7 +90,7 @@ static inline row_t row_add(row_t r, row_value_t toAdd, shift_t from){
 
 static bool row_tryNextOut__i(row_t *curr, shift_t o){
   row_value_t outMask = ((1ll << D)-1) << (o*D);
-  row_value_t upperTOutMask = ((1ll << T)-1) << ((o+1)*D - T);
+  row_value_t upperTOutMask = ((1ll << T)-1) << (o*D + D-T);
   row_value_t one = 1ll << (o*D);
 
   if(__builtin_popcountll(curr->values[0] & upperTOutMask) == T){
@@ -101,7 +101,7 @@ static bool row_tryNextOut__i(row_t *curr, shift_t o){
   row_value_t outs = curr->values[0] & outMask;
 
   if(__builtin_popcountll(outs+one) <= T){ // if incrementing leads to a valid result, just increment it
-    curr->values[0] += one;
+    curr->values[0] += one;  // can't overwrite the higer bits due to the check with upperTOutMask
   }else{
     row_value_t v = (1ll << TAIL_1(outs));
     curr->values[0] += v;
