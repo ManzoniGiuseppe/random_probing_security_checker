@@ -1,7 +1,7 @@
 #!/bin/bash
 
 mainDir=test
-maxAllowedCoeff=5
+maxAllowedCoeff=4
 
 # 1: in file name
 # 2: in options
@@ -80,7 +80,7 @@ for gadget in $(cd gadgets ; ls *.sage) ; do
 done
 
 for generator in $(cd gadgets ; ls *.py) ; do
-  for d in $(seq 2 5) ; do
+  for d in $(seq 3 4) ; do
     gadgets/$generator $d > $mainDir/_tmp_input
     execGadget "$generator=$d" "$mainDir/_tmp_input"
   done
