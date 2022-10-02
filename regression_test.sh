@@ -17,8 +17,12 @@ function findCoeffAndSaveResults(){
 
   c=$(ls $out | grep -a '\.success$' | sed 's:[^/]*/[^/]*/[^/]*/::' | sed 's/\.success$//' | sort -n | tail -n 1)
 
-  if [ $c -ge $maxC ] ; then
-    c=$maxC
+  if [ -z "$c" ] ; then
+    return
+  fi
+
+  if [ "$c" -ge "$maxC" ] ; then
+    c="$maxC"
   fi
 
   echo "calculating ./exec -s $file $op -c $c > _tmp_out"

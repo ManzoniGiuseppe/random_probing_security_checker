@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 mainDir=test
 maxAllowedCoeff=5
 
@@ -17,7 +16,7 @@ function findCoeffAndSaveResults(){
   mkdir $out 2>/dev/null
 
   # limit
-  if [ $maxCoeff -ge $maxAllowedCoeff ] ; then
+  if [ "$maxCoeff" -ge "$maxAllowedCoeff" ] ; then
     maxCoeff=$maxAllowedCoeff
   fi
 
@@ -63,12 +62,18 @@ function execGadget(){
   done
 
   for t in $(seq 0 $[d - 1]) ; do
+#  t=1 # ignore the others.
     for op in $(echo -e "rpcIs\nrpcTeo") ; do
       findCoeffAndSaveResults "$file" "--${op}=$t" "$mainDir/$name/${op}=$t" "$maxCoeff"
     done
   done
 }
 
+
+
+
+
+mkdir $mainDir 2>/dev/null
 
 for gadget in $(cd gadgets ; ls *.sage) ; do
   execGadget $gadget gadgets/$gadget
