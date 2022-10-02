@@ -11,16 +11,17 @@ if len(sys.argv) != 3:
 offset = int(sys.argv[1])
 numProbes = int(sys.argv[2])
 
-mLine = re.compile(r'ret\[([0-9]*)\] = ret\[([0-9]*)\] [+*] ret\[*([0-9]*)\]')
+mRet = re.compile(r'ret\[([0-9]*)\]')
+mOp = re.compile(r'[+*]')
 mult = numProbes*[0]
 for line in sys.stdin:
-  v = mLine.search(line).groups()
-  i = [int(v[1]), int(v[2])]
-  for j in i:
-    if j >= offset:
-      mult[j-offset] += 1
+  toAdd = 2 if mOp.search(line) else 1
 
-mult=[it*2-1 for it in mult]
+  for indexStr in mRet.findall(line)[1:]:  # ignore the return, only put probes on the inputs
+    index = int(indexStr)
+    if index >= offset:
+      mult[index-offset] += toAdd
+
+mult=[(it-1 if it > 0 else 0) for it in mult]
 
 print(mult)
-
