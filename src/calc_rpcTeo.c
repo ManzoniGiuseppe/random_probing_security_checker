@@ -41,7 +41,7 @@ static size_t probe_size;
 
 
 
-static inline fixed_rowsum_t* rowData_get(row_t row, int ii_index, col_t x){
+static inline fixed_rowsum_t* rowData_get(row_t row, int ii_index, noRnd_col_t x){
   return & rowData[x + NUM_NORND_COLS * (rowTransform_row_hash(row) + row_size * ii_index)];
 }
 
@@ -49,38 +49,38 @@ static inline double* probeData_min_get(row_t row){
   return & probeData_min[rowTransform_subRow_hash(row)];
 }
 
-static int xor_col(col_t v1, col_t v2){
-  col_t v = v1 & v2;
+static int xor_col(noRnd_col_t v1, noRnd_col_t v2){
+  noRnd_col_t v = v1 & v2;
   shift_t ones = __builtin_popcountll(v);
   return (ones % 2 == 0) ? 1 : -1;
 }
 
-static void rowData_init(row_t row, col_t ii, int ii_index, col_t x){
+static void rowData_init(row_t row, noRnd_col_t ii, int ii_index, noRnd_col_t x){
   fixed_cell_t transform[NUM_NORND_COLS];
   rowTransform_get(row, transform);
 
   fixed_rowsum_t *it = rowData_get(row, ii_index, x);
 
   *it = 0.0;
-  for(col_t i = 0; i < NUM_NORND_COLS; i++){
+  for(noRnd_col_t i = 0; i < NUM_NORND_COLS; i++){
     if((i &~ ii) != 0){
       *it += transform[i] * xor_col(i, x);
     }
   }
 }
 
-static inline fixed_rowsum_t rowData_sumPhase(row_t row, int ii_index, col_t x){
+static inline fixed_rowsum_t rowData_sumPhase(row_t row, int ii_index, noRnd_col_t x){
   return *rowData_get(row, ii_index, x);
 }
 
 static int xor_row(row_t v1, row_t v2){
   row_t v = row_and(v1, v2);
-  int ones = row_numOnes(v);
+  int ones = row_count1(v);
   return (ones % 2 == 0) ? 1 : -1;
 }
 
 // without multeplicity
-static double probeData_sumPhase(row_t row, row_t o, int ii_index, col_t x){
+static double probeData_sumPhase(row_t row, row_t o, int ii_index, noRnd_col_t x){
   fixed_probesum_t it = 0.0;
   row_t k = row_first();
   do{
@@ -90,7 +90,7 @@ static double probeData_sumPhase(row_t row, row_t o, int ii_index, col_t x){
   return it / (double) (1ll << NUM_TOT_INS);
 }
 
-static double probeData_sumAfterAbs(row_t row, int ii_index, col_t x){
+static double probeData_sumAfterAbs(row_t row, int ii_index, noRnd_col_t x){
   double ret = 0.0;
   row_t o = row_first();
   do{
@@ -116,7 +116,7 @@ static double probeData_minMax(row_t row){
 static double probeData_min1(row_t row){
   double ret = probeData_minMax(row);
 
-  ret = ret / 2 * ldexp(1.0, - row_numOnes(row)); // 2 ** - row_numOnes(row) = multeplicity * 2** - numprobes
+  ret = ret / 2 * ldexp(1.0, - row_count1(row)); // 2 ** - row_count1(row) = multeplicity * 2** - numprobes
   ret = MIN(1, ret);
   return ret;
 }

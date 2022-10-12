@@ -40,15 +40,9 @@ static void calculateAllRowTransform(){
   do{
     bdd_t row_fn = bdd_val_const(bdd, 0);
 
-    for(int i = 0; i < ROW_VALUES_SIZE; i++){
-      row_value_t xorWith = row.values[i];
-
-      while(xorWith != 0){
-        shift_t tail = TAIL_1(xorWith);
-        row_fn = bdd_op_xor(bdd, row_fn, core[tail + i * ROW_VALUE_BITS]);
-        xorWith ^= 1ll << tail;
-      }
-    }
+    ROW_ITERATE_OVER_ONES(row, i, {
+      row_fn = bdd_op_xor(bdd, row_fn, core[i]);
+    })
 
     fixed_cell_t transform[NUM_NORND_COLS];
     bdd_get_transformWithoutRnd(bdd, row_fn, transform);

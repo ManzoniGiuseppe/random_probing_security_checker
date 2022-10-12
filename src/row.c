@@ -8,11 +8,25 @@
 
 
 
-#if D * NUM_OUTS > ROW_VALUE_BITS
-  #error "Current algprithm doesn't support D * NUM_OUTS > ROW_VALUE_BITS"
-#endif
-#if D * NUM_INS > 64
-  #error "Current typing doesn't support D * NUM_INS > 64"
+#if ROW_BITS > 0 // not bitarray
+  #define ROW_GET_OUTPUTS(row)  ((row) & MASK_OF(D*NUM_OUTS))
+
+  #define ROW_SET_OUTPUTS(row, outputs)  {\
+    (row) &= ~MASK_OF(D*NUM_OUTS);\
+    (row) |= (outputs);\
+  }
+  #define ROW_LOCAL_INC(row, fromBit, retHasOverflowed)  {\
+    (row) += 1ll << (fromBit);\
+    if(NUM_TOT_OUTS == ROW_BITS) /*the bit space is fully used by the array*/\
+      (retHasOverflowed) = (row) < 1ll << (fromBit);\
+    else\
+      (retHasOverflowed) = (row) > MASK_OF(NUM_TOT_OUTS);\
+  }
+#else
+  #define ROW_GET_OUTPUTS(row)   bitArray_lowest_get((row).values, D*NUM_OUTS)
+
+  #define ROW_SET_OUTPUTS(row, outputs)  bitArray_lowest_set((row).values, D*NUM_OUTS, outputs);
+  #define ROW_LOCAL_INC(row, fromBit, retHasOverflowed)   (retHasOverflowed) = bitArray_localInc(NUM_TOT_OUTS, (row).values, fromBit);
 #endif
 
 
@@ -21,91 +35,38 @@
 
 shift_t row_maxShares(row_t r){
   shift_t max = 0;
-  row_value_t lowest = r.values[0];
-  row_value_t mask = (1ll << D)-1;
+  uint64_t outputs = ROW_GET_OUTPUTS(r);
   for(int o = 0; o < NUM_OUTS; o++){
-    shift_t val = __builtin_popcountll(lowest & (mask << (o*D)));
+    shift_t val = COUNT_1(outputs & (MASK_OF(D) << (o*D)));
     max = MAX(max, val);
   }
   return max;
 }
-row_t row_singleInput(shift_t input){
-  row_t ret = (row_t){ {0} };
-  ret.values[input/ROW_VALUE_BITS] = 1ll << (input % ROW_VALUE_BITS);
-  return ret;
-}
-bool row_hasInput(row_t r, shift_t input){
-  return ((r.values[input/ROW_VALUE_BITS] >> (input % ROW_VALUE_BITS)) & 1) == 1;
-}
+
 row_t row_first(){
-  return (row_t){ {0} };
-}
-bool row_eq(row_t r0, row_t r1){
-  for(int i = 0; i < ROW_VALUES_SIZE; i++){
-    if(r0.values[i] != r1.values[i])
-      return 0;
-  }
-  return 1;
-}
-row_t row_or(row_t r0, row_t r1){
-  for(int i = 0; i < ROW_VALUES_SIZE; i++){
-    r0.values[i] |= r1.values[i];
-  }
-  return r0;
-}
-row_t row_and(row_t r0, row_t r1){
-  for(int i = 0; i < ROW_VALUES_SIZE; i++){
-    r0.values[i] &= r1.values[i];
-  }
-  return r0;
-}
-row_t row_xor(row_t r0, row_t r1){
-  for(int i = 0; i < ROW_VALUES_SIZE; i++){
-    r0.values[i] ^= r1.values[i];
-  }
-  return r0;
-}
-row_t row_not(row_t r){
-  for(int i = 0; i < ROW_VALUES_SIZE; i++){
-    r.values[i] = ~r.values[i];
-  }
-  return r;
-}
-
-shift_t row_numOnes(row_t r){
-  shift_t ret = 0;
-  for(int i = 0; i < ROW_VALUES_SIZE; i++){
-    ret += __builtin_popcountll(r.values[i]);
-  }
-  return ret;
-}
-
-static inline row_t row_add(row_t r, row_value_t toAdd, shift_t from){
-  for(int i = from; i < ROW_VALUES_SIZE && toAdd != 0; i++){
-    r.values[i] += toAdd;
-    toAdd = r.values[i] < toAdd ? 1 : 0; // carry if it overflows
-  }
-  return r;
+  return row_zero();
 }
 
 static bool row_tryNextOut__i(row_t *curr, shift_t o){
-  row_value_t outMask = ((1ll << D)-1) << (o*D);
-  row_value_t upperTOutMask = ((1ll << T)-1) << (o*D + D-T);
-  row_value_t one = 1ll << (o*D);
+  uint64_t outputs = ROW_GET_OUTPUTS(*curr);
 
-  if(__builtin_popcountll(curr->values[0] & upperTOutMask) == T){
-    curr->values[0] &= ~outMask; // reset this out
-    return 0; // all 1s are at the top -> no output conmbinations left
+  uint64_t outMask = MASK_OF(D) << (o*D);
+  uint64_t upperTOutMask = MASK_OF(T) << (o*D + D-T);
+
+  if(COUNT_1(outputs & upperTOutMask) == T){ // all 1s are at the top -> no output conmbinations left
+    outputs &= ~outMask; // reset this out
+    ROW_SET_OUTPUTS(*curr, outputs)
+    return 0;
   }
 
-  row_value_t outs = curr->values[0] & outMask;
-
-  if(__builtin_popcountll(outs+one) <= T){ // if incrementing leads to a valid result, just increment it
-    curr->values[0] += one;  // can't overwrite the higer bits due to the check with upperTOutMask
-  }else{
-    row_value_t v = (1ll << TAIL_1(outs));
-    curr->values[0] += v;
+  shift_t fromBit;
+  if(COUNT_1(outputs & outMask) < T){
+    fromBit = o*D; // can't overwrite the higer bits as T < D
+  }else{ // COUNT_1(out) == T
+    fromBit = TAIL_1(outputs & outMask); // can't overwrite the higer bits due to the check with upperTOutMask
   }
+  bool hasOverflowed __attribute__((unused));
+  ROW_LOCAL_INC(*curr, fromBit, hasOverflowed);  // can't overwrite the higer bits as T < D
   return 1;
 }
 
@@ -118,24 +79,20 @@ bool row_tryNextOut(row_t *curr){
 }
 
 bool row_tryNextProbe(row_t *curr){
-  row_value_t lowestProbeBit = 1ll << (NUM_OUTS * D);
-  if((curr->values[0] & (lowestProbeBit-1)) != 0) FAIL("row.c: BUG: row_tryNextProbe's parameter includes an output bit\n");
+  if(ROW_GET_OUTPUTS(*curr) != 0) FAIL("row.c: BUG: row_tryNextProbe's parameter includes an output bit\n");
 
-  if(row_numOnes(*curr) == NUM_PROBES || MAX_COEFF == 0) return 0; // end as we covered all probes.
-  row_t next = row_add(*curr, lowestProbeBit, 0); // just increment the probe combination
-  if(row_numOnes(next) <= MAX_COEFF){
-    *curr = next;
-    return 1;
+  if(row_count1(*curr) < MAX_COEFF){
+    bool hasOverflowed;
+    ROW_LOCAL_INC(*curr, NUM_OUTS * D, hasOverflowed)
+    return !hasOverflowed;
   }
 
-  int i = 0;
-  for(; i < ROW_VALUES_SIZE && curr->values[i] == 0; i++); // skip to the first 1
-  *curr = row_add(*curr, 1ll << TAIL_1(curr->values[i]), i);
+  if(MAX_COEFF == 0) return 0; // only one probe combination: all zeros
 
-  for(i = ROW_VALUES_SIZE-1; i >= 0 && curr->values[i] == 0; i--); // skip highest 0s
-  if( i * ROW_VALUE_BITS + LEAD_1(curr->values[i])  >= NUM_TOT_OUTS) return 0; // if overflows
-
-  return 1;
+  int lowest1 = row_tail1(*curr);
+  bool hasOverflowed;
+  ROW_LOCAL_INC(*curr, lowest1, hasOverflowed)
+  return !hasOverflowed;
 }
 
 bool row_tryNextProbeAndOut(row_t *curr){
@@ -148,18 +105,14 @@ bool row_tryNextProbeAndOut(row_t *curr){
 bool row_tryGetNext(row_t highestRow, row_t *curr){ // first is 0, return 0 for end
   if(row_eq(*curr, highestRow)) return 0;
 
-  for(int i = 0; i < ROW_VALUES_SIZE; i++){
-    row_value_t curr_zeros = highestRow.values[i] ^ curr->values[i];  // curr_zeros has a 1 where curr has a meaningful 0
-    if(curr_zeros == 0){
-      curr->values[i] = 0;
-      continue; // carry
-    }
+  row_t curr_zeros = row_xor(highestRow, *curr); // curr_zeros has a 1 where curr has a meaningful 0
+  shift_t lowest0 = row_tail1(curr_zeros); // incementing of 1 = setting the lowest 0 to 1 and all the lower 1s to 0.
 
-    row_value_t lowest_0 = 1ll << TAIL_1(curr_zeros); // lowest meningful 0 of curr
-    curr->values[i] &= ~(lowest_0-1); // remove anything below the lowest 0
-    curr->values[i] |= lowest_0; // change the lowest 0 to 1.
-    break;
-  }
+  ROW_I_SET(*curr, lowest0) // do it here to ensure there is always at least one 1.
+  shift_t lowest1;
+  while((lowest1 = row_tail1(*curr)) < lowest0)
+    ROW_I_RESET(*curr, lowest1)
+
   return 1;
 }
 

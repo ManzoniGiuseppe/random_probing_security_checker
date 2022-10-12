@@ -16,7 +16,7 @@ static bool *probeData;
 static size_t row_size;
 static size_t probe_size;
 
-static void rowData_init(row_t row, col_t ii, int ii_index){
+static void rowData_init(row_t row, noRnd_col_t ii, int ii_index){
   fixed_cell_t transform[NUM_NORND_COLS];
   rowTransform_get(row, transform);
 
@@ -62,7 +62,7 @@ static bool probeData_anyNot0(row_t row, int ii_index){
 
 static bool probeData_is(row_t row){
   int ii_index = 0;
-  for(col_t ii = 0; ii < NUM_NORND_COLS; ii++){
+  for(noRnd_col_t ii = 0; ii < NUM_NORND_COLS; ii++){
     if(calcUtils_maxSharesIn(ii) <= T){
       if(!probeData_anyNot0(row, ii_index)){
         return 0; // all must be true

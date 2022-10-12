@@ -12,11 +12,11 @@
 
 
 // with D=3, from  [0100] -> [000'111'000'000]. from the underlinying wire to all its shares.
-col_t calcUtils_intExpandByD(col_t val);
+noRnd_col_t calcUtils_intExpandByD(noRnd_col_t val);
 
 coeff_t calcUtils_totProbeMulteplicity(row_t highest_row);
 
-shift_t calcUtils_maxSharesIn(col_t value);
+shift_t calcUtils_maxSharesIn(noRnd_col_t value);
 
 
 #define IPT_ROW      0
@@ -65,7 +65,7 @@ inline hash_s_t calcUtils_getHash(int ipt, row_t row){
 // additional var 'ii', 'ii_index'
 #define ITERATE_II(code)  { \
     int ii_index = 0;  \
-    for(col_t ii = 0; ii < NUM_NORND_COLS; ii++){\
+    for(noRnd_col_t ii = 0; ii < NUM_NORND_COLS; ii++){\
       if(calcUtils_maxSharesIn(ii) <= T){ \
         code  \
         ii_index++; \
@@ -75,14 +75,14 @@ inline hash_s_t calcUtils_getHash(int ipt, row_t row){
 
 // additional var 'x'
 #define ITERATE_X_UND(code)  { \
-    for(col_t x = 0; x < (1ll << NUM_INS); x++){ \
+    for(noRnd_col_t x = 0; x < (1ll << NUM_INS); x++){ \
       code  \
     } \
   }
 
 // additional var 'x'
 #define ITERATE_X_ACT(code)  { \
-    for(col_t x = 0; x < (1ll << D * NUM_INS); x++){ \
+    for(noRnd_col_t x = 0; x < (1ll << D * NUM_INS); x++){ \
       code  \
     } \
   }

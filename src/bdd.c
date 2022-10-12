@@ -11,7 +11,7 @@
   #define NUM_TOT_INS__LOG2  8
 #endif
 
-#if NUM_INS * D > (1ll << NUM_TOT_INS__LOG2)
+#if NUM_TOT_INS > (1ll << NUM_TOT_INS__LOG2)
   #error "increase NUM_TOT_INS__LOG2"
 #endif
 
@@ -103,7 +103,7 @@ static inline hash_t bdd_new_node__h(bdd_t sub0, bdd_t sub1, hash_t counter){
 }
 
 
-static inline bdd_t bdd_new_node(bdd_storage_t *s, bdd_t sub0, bdd_t sub1, shift_t input){   // add GC for when nearly empty.
+static bdd_t bdd_new_node(bdd_storage_t *s, bdd_t sub0, bdd_t sub1, shift_t input){   // add GC for when nearly empty.
   if(sub0 == sub1) return sub0; // simplify
   if(bdd_is_negated(sub0)) return bdd_op_neg(bdd_new_node(s, bdd_op_neg(sub0), bdd_op_neg(sub1), input)); // ensure it's unique: have the sub0 always positive
 
@@ -481,10 +481,10 @@ static inline void bdd_op_getSumRNDs_v2(bdd_storage_t *s, bdd_t val, fixed_cell_
 */
 
 // Fast Walsh-Hadamard transform
-static void inPlaceTransform(fixed_cell_t *tr, col_t size){ // tr must have 1 for false, -1 for true, can accept partially transformed inputs too
+static void inPlaceTransform(fixed_cell_t *tr, noRnd_col_t size){ // tr must have 1 for false, -1 for true, can accept partially transformed inputs too
   if (size == 1) return;
-  col_t h = size/2;
-  for (col_t i = 0; i < h; i++){
+  noRnd_col_t h = size/2;
+  for (noRnd_col_t i = 0; i < h; i++){
     fixed_cell_t a = tr[i];
     fixed_cell_t b = tr[i+h];
     tr[i] = a + b;

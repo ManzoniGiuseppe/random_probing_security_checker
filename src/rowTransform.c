@@ -87,19 +87,7 @@ static void __attribute__ ((destructor)) freeUnique(){
 #endif
 
 static inline hash_s_t unique_get_hash(row_t index, hash_s_t counter){
-  hash_l_t hash = 0;
-
-  for(int i = 0; i < ROW_VALUES_SIZE; i++){
-    hash_l_t it = index.values[i] + counter;
-    it = (it * 0xB0000B) ^ ROT(it, 17);
-    hash ^= (it * 0xB0000B) ^ ROT(it, 17);
-    hash = (hash * 0xB0000B) ^ ROT(hash, 17);
-  }
-
-  hash_s_t r = 0;
-  for(int i = 0; i < 64 ; i+=ROWTRANSFORM_UNIQUE_BITS)
-    r ^= (hash >> i) & ((1ll << ROWTRANSFORM_UNIQUE_BITS) -1);
-  return r;
+  return row_hash(index, counter, ROWTRANSFORM_UNIQUE_BITS);
 }
 
 static uint64_t unique_hash_requests;
@@ -175,7 +163,7 @@ void rowTransform_insert(row_t index, fixed_cell_t transform[NUM_NORND_COLS]){
 static hash_s_t unique_hash(row_t index){
   hash_s_t it = rowTransform_find(index);
   if(unique[it].row_hash == ~(hash_s_t)0)
-    FAIL("rowTransform: Asking to get the missing row with lower bits %lX!\n", index.values[0])
+    FAIL("rowTransform: Asking to get a missing row!\n")
   return it;
 }
 
