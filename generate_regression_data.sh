@@ -1,7 +1,7 @@
 #!/bin/bash
 
 mainDir=test
-maxAllowedCoeff=4
+maxAllowedCoeff=7
 
 # 1: in file name
 # 2: in options
@@ -26,7 +26,7 @@ function findCoeffAndSaveResults(){
     fi
     if [ ! -e $out/$c.success ] ; then
       echo "calculating ./exec -s $file $op -c $c > $out"
-      { timeout 10m bash -c "time ./exec.sh -s $file $op -c $c" ; } >$mainDir/_tmp_out 2>&1
+      { timeout 20m bash -c "time ./exec.sh -s $file $op -c $c" ; } >$mainDir/_tmp_out 2>&1
       status=$?
 
       if [ $status -eq 0 ] ; then
@@ -61,11 +61,9 @@ function execGadget(){
     findCoeffAndSaveResults "$file" "--$op" "$mainDir/$name/$op" "$maxCoeff"
   done
 
-  for t in $(seq 0 $[d - 1]) ; do
-#  t=1 # ignore the others.
-    for op in $(echo -e "rpcIs\nrpcW\nrpcTeo") ; do
-      findCoeffAndSaveResults "$file" "--${op}=$t" "$mainDir/$name/${op}=$t" "$maxCoeff"
-    done
+  t=$[d / 2] # ignore the others.
+  for op in $(echo -e "rpcIs\nrpcW\nrpcTeo") ; do
+    findCoeffAndSaveResults "$file" "--${op}=$t" "$mainDir/$name/${op}__$t" "$maxCoeff"
   done
 }
 
@@ -80,9 +78,9 @@ for gadget in $(cd gadgets ; ls *.sage) ; do
 done
 
 for generator in $(cd gadgets ; ls *.py) ; do
-  for d in $(seq 3 4) ; do
+  for d in $(echo -e '3\n5') ; do
     gadgets/$generator $d > $mainDir/_tmp_input
-    execGadget "$generator=$d" "$mainDir/_tmp_input"
+    execGadget "${generator}__$d" "$mainDir/_tmp_input"
   done
 done
 

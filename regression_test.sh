@@ -8,14 +8,17 @@ maxC=4
 # 1: in file name
 # 2: in options
 # 3: out file name
-function findCoeffAndSaveResults(){
+function findCoeffAndCheckResults(){
   file="$1"
   op="$2"
   out="$3"
 
-  mkdir $out 2>/dev/null
+  if [ ! -d "$out" ] ; then
+    echo missing $out
+    return
+  fi
 
-  c=$(ls $out | grep -a '\.success$' | sed 's:[^/]*/[^/]*/[^/]*/::' | sed 's/\.success$//' | sort -n | tail -n 1)
+  c=$(ls "$out" | grep -a '\.success$' | sed 's:[^/]*/[^/]*/[^/]*/::' | sed 's/\.success$//' | sort -n | tail -n 1)
 
   if [ -z "$c" ] ; then
     return
@@ -48,21 +51,24 @@ function execGadget(){
   file="$2"
 
   echo $name
-  mkdir $mainDir/$name 2>/dev/null
+  if [ ! -d "$mainDir/$name" ] ; then
+    echo missing "$mainDir/$name"
+    return
+  fi
 
   ./exec.sh -s $file -c 0 --no-compile > $mainDir/_tmp_out
   d=$(grep -a "^GCC FLAGS: " $mainDir/_tmp_out | sed "s/-D/\n/g" | grep -a "^D=" | sed "s/^D=//")
 
   for op in $(echo -e "rpsIs\nrpsSum\nrpsTeo") ; do
     if echo $allowedOp | grep -a -q ":$op:" ; then
-      findCoeffAndSaveResults "$file" "--$op" "$mainDir/$name/$op"
+      findCoeffAndCheckResults "$file" "--$op" "$mainDir/$name/$op"
     fi
   done
 
   for t in $(seq 0 $[d - 1]) ; do
     for op in $(echo -e "rpcIs\nrpcW\nrpcTeo") ; do
       if echo $allowedOp | grep -a -q ":$op:" ; then
-        findCoeffAndSaveResults "$file" "--${op}=$t" "$mainDir/$name/${op}=$t"
+        findCoeffAndCheckResults "$file" "--${op}=$t" "$mainDir/$name/${op}__$t"
       fi
     done
   done
@@ -76,7 +82,7 @@ done
 for generator in $(cd gadgets ; ls *.py) ; do
   for d in $(seq 2 5) ; do
     gadgets/$generator $d > $mainDir/_tmp_input
-    execGadget "$generator=$d" "$mainDir/_tmp_input"
+    execGadget "${generator}__$d" "$mainDir/_tmp_input"
   done
 done
 

@@ -16,8 +16,8 @@ for file in sys.argv[1:]:
   sagefile = 'gadgets/' + file.split('/')[1]
   print(sagefile)
 
-  if '=' in sagefile:
-    sagefile = '<(' + sagefile.replace('=', ' ') + ')'
+  if '__' in sagefile:
+    sagefile = '<(' + sagefile.replace('__', ' ') + ')'
 
   maxCoeff = int(subprocess.check_output(['bash', '-c', './exec.sh -s ' + sagefile + ' -c 0 --no-compile | grep "^GCC FLAGS: " | sed "s/-D/\\n/g" | grep "^TOT_MUL_PROBES=" | sed "s/^TOT_MUL_PROBES=//"']))
   print(maxCoeff)

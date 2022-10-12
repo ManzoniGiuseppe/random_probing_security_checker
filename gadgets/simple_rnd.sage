@@ -1,5 +1,0 @@
-#SHARES 1
-#RANDOMS r0
-#OUT c
-
-c0 = r0

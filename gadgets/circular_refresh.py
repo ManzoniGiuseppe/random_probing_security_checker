@@ -14,7 +14,12 @@ if numShares <= 1:
 
 print('#SHARES', numShares)
 print('#IN a')
+print('#RANDOMS ', end='')
+
+print(*['r'+str(i) for i in range(numShares)], sep=' ')
 print('#OUT c')
 
 for i in range(numShares):
-  print('c',i,' = a',i, sep='')
+  next = i+1 if i+1 < numShares else 0
+  print('t0 = r',i,' + r',next, sep='')
+  print('c',i,' = a',i,' + t0', sep='')

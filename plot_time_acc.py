@@ -81,19 +81,18 @@ def getInfo(maxCoeff, dir):
 
 
 prefix = sys.argv[1]
-suffix = sys.argv[2]
-chosenMaxCoeff = int(sys.argv[3])
+chosenMaxCoeff = int(sys.argv[2])
 gadgetInfo = [('vrapsPaper_copy.sage', 'b'),
-              ('otpoePaper_copy.sage', 'tab:blue'),
-              ('otpoePaper_add.sage', 'limegreen'),
+              ('otpoePaper_small_copy.sage', 'tab:blue'),
+              ('otpoePaper_small_add.sage', 'limegreen'),
               ('vrapsPaper_add_v1.sage', 'g'),
               ('vrapsPaper_add_v2.sage', 'lime'),
-              ('isw_mul_generator.py=4', 'red'),
-              ('isw_mul_generator.py=3', 'darkred'),
+              ('isw_mul.py__5', 'red'),
+              ('isw_mul.py__3', 'darkred'),
               ('vrapsPaper_mul.sage', 'tab:orange'),
-              ('otpoePaper_mul.sage', 'tomato'),
-              ('otpoePaper_refresh.sage', 'grey'),
-              ('refresh_ring.sage', 'black')]
+              ('otpoePaper_small_mul.sage', 'tomato'),
+              ('otpoePaper_small_refresh.sage', 'grey'),
+              ('circular_refresh.py__3', 'black')]
 
 
 toPrint = []
@@ -105,7 +104,7 @@ if prefix == 'rps':
 if prefix == 'rpc':
   toPrint += [[[], [], [], 'SD_COR', 'o', 'test', 'Teo']]
   toPrint += [[[], [], [], 'VRAPS_COR', '+', 'test', 'Is']]
-  toPrint += [[[], [], [], 'W', '^', 'test', 'W']]
+  toPrint += [[[], [], [], 'W_COR', '^', 'test', 'W']]
   toPrint += [[[], [], [], 'VRAPS_ORIG', 'x', 'vraps', 'Vraps']]
 
 
@@ -126,10 +125,15 @@ for (color, gadget) in enumerate([g for g,c in gadgetInfo]):
   print('processing', gadget)
   sagefile = 'gadgets/' + gadget
 
-  if '=' in sagefile:
-    sagefile = '<(' + sagefile.replace('=', ' ') + ')'
+  if '__' in sagefile:
+    sagefile = '<(' + sagefile.replace('__', ' ') + ')'
 
   maxCoeff = int(subprocess.check_output(['bash', '-c', './exec.sh -s ' + sagefile + ' -c 0 --no-compile | grep "^GCC FLAGS: " | sed "s/-D/\\n/g" | grep "^TOT_MUL_PROBES=" | sed "s/^TOT_MUL_PROBES=//"']))
+  if prefix == 'rpc':
+    d = int(subprocess.check_output(['bash', '-c', './exec.sh -s ' + sagefile + ' -c 0 --no-compile | grep "^GCC FLAGS: " | sed "s/-D/\\n/g" | grep "^D=" | sed "s/^D=//"']))
+    suffix = str((d-1)/2)
+  else:
+    suffix = ''
 
   for i in range(len(toPrint)):
     (p, time) = getInfo(maxCoeff, toPrint[i][toPrint_dir] + '/' + gadget + '/' + prefix + toPrint[i][toPrint_op] + suffix + '/')
