@@ -58,12 +58,17 @@ cat "$paramSage" > $dir/raw_in
 
 # get info from '#' lines
 d=$(cat $dir/raw_in | grep '#SHARES' | sed 's/#SHARES //')
-numRnd=$(cat $dir/raw_in | grep '#RANDOMS' | sed 's/#RANDOMS //;s/ /\n/g' | wc -l)
-numUndIns=$(cat $dir/raw_in | grep '#IN' | sed 's/#IN //;s/ /\n/g' | wc -l)
-numUndOuts=$(cat $dir/raw_in | grep '#OUT' | sed 's/#OUT //;s/ /\n/g' | wc -l)
-ins=$(cat $dir/raw_in | grep '#IN' | sed 's/#IN //')
-outs=$(cat $dir/raw_in | grep '#OUT' | sed 's/#OUT //')
-randoms=$(cat $dir/raw_in | grep '#RANDOMS' | sed 's/#RANDOMS //')
+ins=$(cat $dir/raw_in | grep '#IN' | sed 's/#IN //;s/  */ /g;s/^ //;s/ $//')
+outs=$(cat $dir/raw_in | grep '#OUT' | sed 's/#OUT //;s/  */ /g;s/^ //;s/ $//')
+randoms=$(cat $dir/raw_in | grep '#RANDOMS' | sed 's/#RANDOMS //;s/  */ /g;s/^ //;s/ $//')
+numRnd=$(echo $randoms | sed 's/ /\n/g' | wc -l)
+numUndIns=$(echo $ins | sed 's/ /\n/g' | wc -l)
+numUndOuts=$(echo $outs | sed 's/ /\n/g' | wc -l)
+
+if [ "$paramT" -ge "$d" ] ; then
+  echo "can't have t >= d" >&2
+  exit 1
+fi
 
 # remove comments, leading and trailing spaces and empty lines
 cat $dir/raw_in | sed 's/^#.*$//;s/^[ \t]*//;s/[ \t]*$//' | grep -v '^$' > $dir/uncommented_in
@@ -161,10 +166,10 @@ if [ $nocompile -eq 1 ] ; then exit ; fi
 
 souces="gadget $(ls *.c | sed 's/.c$//')"
 for name in $souces ; do
-  gcc -c -O3 -flto -march=native -mtune=native -Wall -Wextra $gcc_flags_macro ${name}.c -o ${name}.o || exit 1
+  gcc -c -O3 -flto -march=native -mtune=native -Wall -Wextra -Winline $gcc_flags_macro ${name}.c -o ${name}.o || exit 1
 done
 
-gcc -O3 -flto -march=native -mtune=native -fwhole-program -Wall -Wextra *.o -o executable
+gcc -O3 -flto -march=native -mtune=native -fwhole-program -Wall -Wextra -Winline *.o -o executable
 
 echo "Compiled!"
 
