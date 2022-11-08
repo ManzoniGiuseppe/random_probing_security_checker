@@ -17,7 +17,7 @@
 
 
 // TODO  otpoePaper_mul.py__5  rpc* seem to fail
-
+// TODO  why  RPS\_COR2 != RPS\_COR3 in the add with only xor.  near exact ratio of 1.5 everywhere. Why.
 
 void printCoeff(const char* what, double *coeffs, wire_t maxCoeff){
   printf("%s:", what);

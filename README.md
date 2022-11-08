@@ -30,20 +30,19 @@ For the .py that generate .sage, it's possible to do (at least in bash):
 
 The '--help' prints this readme and terminates, the '--license' prints the GPLv3 and terminates.
 
-
-TODO: is the -c mandatory?
+If the '-c' is absent, it calculates all coefficients.
 
 Note: In the .sage files:
- - all assignments must have exactly one operation (+ or *)
- - no input must be used directly as output  TODO: is it still valid?
- - no input must be written to
-
+ - names are alphanumeric
+ - the # directives have no indentation
+ - any other # is a line-long comment
+ - only binary + and *
 
 ## Graphs
 
 the paper's graphs were made with (and by fiddling the internal parameters):
 
-    ./plot_test_fn.py vraps/otpoePaper_add.py__3/rpsVraps/*.success
+    ./plot_test_fn.py .vraps.out/otpoePaper_add.py__3/rpsVraps/*.success
 
     ./plot_time_acc.py rps isw_mul.py__3:{3:green,5:blue,6:orange,8:black}
     ./plot_time_acc.py rps vrapsPaper_mul.sage:{3:green,4:blue,5:orange,6:black}
@@ -53,15 +52,14 @@ the paper's graphs were made with (and by fiddling the internal parameters):
     ./plot_time_acc.py rps otpoePaper_add.py__3:{3:green,5:blue,7:orange,9:black}
 
     ./plot_time_acc.py rps vrapsPaper_copy.sage:{3:green,5:blue,7:orange,12:fuchsia,13:black}
-    ./plot_test_fn.py {test,vraps}/vrapsPaper_copy.sage/rps*/13.success
+    ./plot_test_fn.py .{rpsc,vraps}.out/vrapsPaper_copy.sage/rps*/13.success
 
-The 'plot_time_acc.py' script will create the file 'toDelete_out.png'
-
-TODO: what about the vraps's result?
+The directory '.vraps.out' must be created by a script similar to 'generate_out.sh' only that parses VRAPS' output
+The 'plot_time_acc.py' script will create the file '.plot_time_acc.out.png'
 
 ## Tests
 
-TODO
+TODO describe tests and other sub-programs
 
 ## Copyright
 
