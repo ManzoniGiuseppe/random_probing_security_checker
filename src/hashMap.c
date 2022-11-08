@@ -1,198 +1,301 @@
+//This file is part of the program Random Probing Security Checker, which checks the random probing security properties of a given gadget
+//Copyright (C) 2022  Giuseppe Manzoni
+//This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+//This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+//You should have received a copy of the GNU General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 #include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <threads.h>
+#include <stdatomic.h>
 
-
+#include "types.h"
 #include "hashMap.h"
+#include "bitArray.h"
+#include "hash.h"
 #include "mem.h"
 
 
-typedef struct hashMap{
+//#define HASHMAP_INITIAL_BITS
+//#define HASHMAP_CONTIGUOUS_BITS
+//#define HASHMAP_HASH_ATTEMPTS
+//#define HASHMAP_SAVE_HASH_RATIO
+
+
+#define DBG_FILE "hashMap"
+#define DBG_LVL DBG_HASHMAP
+
+
+
+
+typedef struct{
   void* table;
-  shift_t num_elem;
+  hash_compact_t *hashes; // either this
+  bitArray_t isPresent;   // or this
+  pow2size_t num_elem;
   uint32_t size_k;
   uint32_t size_v;
-  uint64_t hash_requests;
-  uint64_t hash_lookups;
+  atomic_uint_fast64_t hash_requests;
+  atomic_uint_fast64_t hash_lookups;
   size_t num_curr_elem;
-  char *of_what;
-} *hashMap_priv_t;
+  const char *of_what;
+} hashMap_priv_t;
+#define P(pub)   ((hashMap_priv_t *) ((hashMap_t)(pub)).hashMap)
 
 
-shift_t hashMap_getNumElem(hashMap_t ht_p){
-  hashMap_priv_t ht = ht_p;
-  return ht->num_elem;
+#define REDUCE_HASH(ht, hash)   ((hash).v & (P(ht)->num_elem - 1))
+
+
+//--- basic info
+
+pow2size_t hashMap_getNumElem(hashMap_t ht){
+  DBG(DBG_LVL_DETAILED, "%s: getNumElem: %d\n", P(ht)->of_what, P(ht)->num_elem);
+  return P(ht)->num_elem;
 }
 
-size_t hashMap_getNumCurrElem(hashMap_t ht_p){
-  hashMap_priv_t ht = ht_p;
-  return ht->num_curr_elem;
+size_t hashMap_getNumCurrElem(hashMap_t ht){
+  DBG(DBG_LVL_DETAILED, "%s: getNumCurrElem: %d elems\n", P(ht)->of_what, P(ht)->num_curr_elem);
+  return P(ht)->num_curr_elem;
 }
 
-double hashMap_dbg_fill(hashMap_t ht_p){
-  hashMap_priv_t ht = ht_p;
-  return ht->num_curr_elem / (double) (1ll << ht->num_elem);
+double hashMap_dbg_fill(hashMap_t ht){
+  return P(ht)->num_curr_elem / (double) P(ht)->num_elem;
 }
-double hashMap_dbg_hashConflictRate(hashMap_t ht_p){
-  hashMap_priv_t ht = ht_p;
-  return (ht->hash_lookups - ht->hash_requests) / (double) ht->hash_requests;
+double hashMap_dbg_hashConflictRate(hashMap_t ht){
+  uint_fast64_t hash_requests = atomic_load_explicit(&P(ht)->hash_requests, memory_order_relaxed);
+  uint_fast64_t hash_lookups = atomic_load_explicit(&P(ht)->hash_lookups, memory_order_relaxed);
+  return (hash_lookups - hash_requests) / (double) hash_requests;
 }
 
-void *hashMap_new(shift_t num_elem, size_t size_k, size_t size_v, char *of_what){
-  if(size_k % sizeof(uint64_t) != 0) FAIL("hashMap: %s: size_k must be a multiple of %ld", of_what, sizeof(uint64_t))
-  if(size_v % sizeof(uint64_t) != 0) FAIL("hashMap: %s: size_v must be a multiple of %ld", of_what, sizeof(uint64_t))
+//---- new/delete
 
-  hashMap_priv_t ret = mem_calloc(sizeof(struct hashMap), 1, of_what);
-  void *table = mem_calloc(size_k + size_v, 1ll<<num_elem, of_what);
 
-  *ret = (struct hashMap){
-    .table = table,
-    .num_elem = num_elem,
-    .size_k = size_k,
-    .size_v = size_v,
-    .hash_requests = 0,
-    .hash_lookups = 0,
-    .num_curr_elem = 0,
-    .of_what = of_what,
-  };
+T__THREAD_SAFE hashMap_t hashMap_new__i(bool saveHash, pow2size_t num_elem, size_t size_k, size_t size_v, T__ACQUIRES const char *ofWhat){
+  hashMap_t ret = { mem_calloc(sizeof(hashMap_priv_t), 1, ofWhat) };
+  void *table = mem_calloc(size_k + size_v, num_elem, ofWhat);
+
+  P(ret)->table = table;
+  P(ret)->num_elem = num_elem;
+  P(ret)->size_k = size_k;
+  P(ret)->size_v = size_v;
+  P(ret)->num_curr_elem = 0;
+  P(ret)->hashes = saveHash ? mem_calloc(sizeof(hash_compact_t), num_elem, ofWhat) : NULL;
+  P(ret)->isPresent = saveHash ? NULL : BITARRAY_CALLOC(num_elem, ofWhat);
+  P(ret)->of_what = ofWhat;
+
+  atomic_init(& P(ret)->hash_requests, 0);
+  atomic_init(& P(ret)->hash_lookups, 0);
   return ret;
 }
 
-void hashMap_delete(hashMap_t ht_p){
-  hashMap_priv_t ht = ht_p;
+T__THREAD_SAFE hashMap_t hashMap_new(size_t size_k, size_t size_v, T__ACQUIRES const char *of_what){
+  pow2size_t num_elem = 1ll << HASHMAP_INITIAL_BITS;
+  bool saveHash = sizeof(hash_compact_t) * HASHMAP_SAVE_HASH_RATIO <= size_k + size_v;     //   sizeof(hash_compact_t) / (size_k + size_v) <= 1 / HASHMAP_SAVE_HASH_RATIO
 
-  mem_free(ht->table);
-  mem_free(ht);
+  DBG(DBG_LVL_MINIMAL, "%s: new with num_elem=%ld size_k=%ld size_v=%ld, and %s hash\n", of_what, num_elem, (long) size_k, (long) size_v, saveHash ? "with" : "without");
+
+  return hashMap_new__i(saveHash, num_elem, size_k, size_v, of_what);
+}
+
+void hashMap_delete(hashMap_t ht){
+  if(P(ht)->hashes) mem_free(P(ht)->hashes);
+  if(P(ht)->isPresent) mem_free(P(ht)->isPresent);
+  mem_free(P(ht)->table);
+  mem_free(P(ht));
 }
 
 
-static inline hash_l_t calc_hash(hashMap_priv_t ht, void *key_p, hash_l_t init){
-  uint64_t *key = key_p + sizeof(hash_l_t); // remove the hash field
+//---- find
 
-  size_t size = ht->size_k/sizeof(uint64_t);
-
-  hash_l_t hash = init;
-  for(size_t i = 0; i < size; i++){
-    hash_l_t it = key[i];
-    it = (it * 0xB0000B) ^ ROT(it, 23);
-    hash ^= (it * 0xB0000B) ^ ROT(it, 23);
-    hash = (hash * 0xB0000B) ^ ROT(hash, 23);
-  }
-
-  hash = (hash * 0xB0000B) ^ ROT(hash, 23);
-
-  return hash != 0 ? hash : 1;
+static inline bool isUsedR(hashMap_t ht, reducedHash_t r){
+  if(P(ht)->hashes) return P(ht)->hashes[r].v != 0;
+  else return bitArray_get(P(ht)->num_elem, P(ht)->isPresent, r);
 }
 
-#define NUM_ATTEMPT_HASH_1 10
-#define NUM_ATTEMPT_HASH_2 10
+static bool hashMap_find(hashMap_t ht, void *key, hash_t *ret, bool stopAtFirstEmpty){ // set hash if found, set first empty if present, illegal 0 otherwise
+  atomic_fetch_add_explicit(&P(ht)->hash_requests, 1, memory_order_relaxed);
+  size_t size_tot = P(ht)->size_k + P(ht)->size_v;
+  *ret = (hash_t){ 0 }; // illegal return for fail
 
-static int hashMap_find(hashMap_priv_t ht, void *key, hash_s_t *hash_elem){
-  ht->hash_requests++;
-  hash_l_t *base_hash = (hash_l_t*) key; // struct has the same pointer as its first element
+  for(int counter = 0; counter < HASHMAP_HASH_ATTEMPTS; counter++){
+    atomic_fetch_add_explicit(&P(ht)->hash_lookups, 1, memory_order_relaxed);
+    hash_t base = hash_calculate(P(ht)->size_k, key, counter);
+    base.v &= ~(uint_fast64_t) MASK_OF(HASHMAP_CONTIGUOUS_BITS);
 
-  size_t size_tot = ht->size_k + ht->size_v;
+    for(int i = 0; i < 1ll << HASHMAP_CONTIGUOUS_BITS; i++){
+      hash_t it = base;
+      it.v |= i;
+      reducedHash_t usedIt = REDUCE_HASH(ht, it);
 
-  for(shift_t sh = 0; sh < NUM_ATTEMPT_HASH_1; sh++){
-    *base_hash = calc_hash(ht, key, sh);
-    hash_s_t hash = *base_hash & ((1ll << ht->num_elem) -1);
+      if(usedIt == 0) // ignore illegal.
+        continue;
 
-    for(hash_s_t i = 0; i < NUM_ATTEMPT_HASH_2; i++){
-      *hash_elem = (hash + i) & ((1ll << ht->num_elem)-1);
+      if(!isUsedR(ht, usedIt)){
+        if(ret->v == 0)
+          *ret = it;
+        if(stopAtFirstEmpty) return 0;
+        else continue;
+      }
 
-      void* elem = ht->table + *hash_elem * size_tot;
-      ht->hash_lookups++;
-
-      if(*(hash_l_t*) elem == 0) // struct has the same pointer as its first element. 0 -> uninited
-        return 0;
-
-      if(memcmp(elem, key, ht->size_k) == 0)
-        return 1;
+      if(!P(ht)->hashes || hash_eq(P(ht)->hashes[usedIt], it)){
+        void* elem = P(ht)->table + usedIt * size_tot;
+        if(memcmp(elem, key, P(ht)->size_k) == 0){ // if matches
+          *ret = it;
+          return 1;
+        }
+      }
     }
   }
 
-  printf("hashMap: %s: couldn't find a match or an empty place! fill=%d%%, conflictRate=%d%%\n", ht->of_what, (int) (hashMap_dbg_fill(ht) * 100), (int) (hashMap_dbg_hashConflictRate(ht) * 100));
-  return -1;
+  return 0;
 }
+
+//---- get values
+
 
 bool hashMap_contains(hashMap_t ht, void *key){
-  hash_s_t hash_elem;
-  int ret = hashMap_find(ht, key, &hash_elem);
-  return ret == 1;
+  hash_t v;
+  return hashMap_find(ht, key, &v, 0);
 }
 
-bool hashMap_add(hashMap_t ht_p, void *key, void *value){
-  hashMap_priv_t ht = ht_p;
-
-  hash_s_t hash_elem;
-  int ret = hashMap_find(ht, key, &hash_elem);
-
-  if(ret == -1) return 0;
-  if(ret == 1) FAIL("hashTable: %s: key already present\n", ht->of_what)
-
-   ht->num_curr_elem++;
-   size_t size_tot = ht->size_k + ht->size_v;
-   memcpy(ht->table + hash_elem * size_tot, key, ht->size_k);
-   memcpy(ht->table + hash_elem * size_tot + ht->size_k, value, ht->size_v);
-   return 1;
+hash_t hashMap_getPos(hashMap_t ht, void *key){
+  hash_t hash_elem;
+  if(!hashMap_find(ht, key, &hash_elem, 0)) FAIL("hashMap: %s: missing key!\n", P(ht)->of_what)
+  return hash_elem;
 }
 
-hash_s_t hashMap_getPos(hashMap_t ht_p, void *key){
-  hashMap_priv_t ht = ht_p;
+bool hashMap_hasVal(hashMap_t ht, reducedHash_t reducedI, void **key, void **value){
+  if(reducedI == 0 || !isUsedR(ht, reducedI))
+    return 0;
 
-  hash_s_t hash_elem;
-  int ret = hashMap_find(ht, key, &hash_elem);
-
-  if(ret == -1) return 0;
-  if(ret == 0) FAIL("hashTable: %s: missing key\n", ht->of_what)
-
-   return hash_elem;
+  size_t size_tot = P(ht)->size_k + P(ht)->size_v;
+  *key = P(ht)->table + reducedI * size_tot;
+  *value = *key + P(ht)->size_k;
+  return 1;
 }
 
-bool hashMap_validPos(hashMap_t ht_p, hash_s_t pos){
-  hashMap_priv_t ht = ht_p;
+void* hashMap_getKeyR(hashMap_t ht, reducedHash_t pos){
+  ON_DBG(DBG_LVL_TOFIX, {
+    if(pos == 0 || !isUsedR(ht, pos)) FAIL("hashMap: %s: trying to get the key of a missing position (0x%llX)!\n", P(ht)->of_what, (long long) pos)
+  })
 
-  size_t size_tot = ht->size_k + ht->size_v;
-  void *elem = ht->table + pos * size_tot;
-
-  return *(hash_l_t*) elem != 0; // struct has the same pointer as its first element
-}
-
-void* hashMap_getKey(hashMap_t ht_p, hash_s_t pos){
-  hashMap_priv_t ht = ht_p;
-
-  size_t size_tot = ht->size_k + ht->size_v;
-  void *key = ht->table + pos * size_tot;
-
-  if(*(hash_l_t*) key == 0) FAIL("hashTable: %s: trying to get the key of a missing position\n", ht->of_what)
+  size_t size_tot = P(ht)->size_k + P(ht)->size_v;
+  void *key = P(ht)->table + pos * size_tot;
 
   return key;
 }
 
-void* hashMap_getValue(hashMap_t ht_p, hash_s_t pos){
-  hashMap_priv_t ht = ht_p;
-
-  size_t size_tot = ht->size_k + ht->size_v;
-  void *key = ht->table + pos * size_tot;
-
-  if(*(hash_l_t*) key == 0) FAIL("hashTable: %s: trying to get the value of a missing position\n", ht->of_what)
-
-  return key + ht->size_k;
+void* hashMap_getValueR(hashMap_t ht, reducedHash_t pos){
+  return hashMap_getKeyR(ht, pos) + P(ht)->size_k;
 }
 
-bool hashMap_set(hashMap_t ht_p, void *key, void *value, hash_s_t *ret_pos){
-  hashMap_priv_t ht = ht_p;
-  int ret = hashMap_find(ht, key, ret_pos);
+static bool containsHashFast(hashMap_t ht, hash_t pos){
+  reducedHash_t usedPos = REDUCE_HASH(ht, pos);
 
-  if(ret == -1) return 0;
+  if(P(ht)->hashes) return hash_eq(pos, P(ht)->hashes[usedPos]);
+  else return bitArray_get(P(ht)->num_elem, P(ht)->isPresent, usedPos);
+}
 
-  size_t size_tot = ht->size_k + ht->size_v;
-  memcpy(ht->table + *ret_pos * size_tot + ht->size_k, value, ht->size_v);
+void* hashMap_getKey(hashMap_t ht, hash_t pos){
+  reducedHash_t usedPos = REDUCE_HASH(ht, pos);
 
-  if(ret == 0){
-    ht->num_curr_elem++;
-    memcpy(ht->table + *ret_pos * size_tot, key, ht->size_k);
+  ON_DBG(DBG_LVL_TOFIX, {
+    if(pos.v == 0 || !containsHashFast(ht, pos)) FAIL("hashMap: %s: trying to get the key of a missing position (0x%llX)!\n", P(ht)->of_what, (long long) pos.v)
+  })
+
+  size_t size_tot = P(ht)->size_k + P(ht)->size_v;
+  void *key = P(ht)->table + usedPos * size_tot;
+
+  return key;
+}
+
+void* hashMap_getValue(hashMap_t ht, hash_t pos){
+  return hashMap_getKey(ht, pos) + P(ht)->size_k;
+}
+
+//---- set
+
+static hash_t getHashOfPresent(hashMap_t ht, reducedHash_t r){
+  if(P(ht)->hashes) return hash_fromCompact(P(ht)->hashes[r]);
+  hash_t ret;
+  if(!hashMap_find(ht, hashMap_getKeyR(ht, r), &ret, 0)) FAIL("%s: getHashOfPresent: couldn't find hash 0x%llX which should be present", P(ht)->of_what, (long long) r)
+  return ret;
+}
+
+static void resize(hashMap_t ht){
+  ON_DBG(DBG_LVL_TOFIX, {
+    if(P(ht)->num_curr_elem < P(ht)->num_elem / 2) DBG(DBG_LVL_TOFIX, "%s: resize. Contains %ld elems out of %ld. Fill=%d%%, HashConflictRate=%d%%. Now doubling the size.\n", P(ht)->of_what, P(ht)->num_curr_elem, P(ht)->num_elem, (int) (hashMap_dbg_fill(ht) * 100), (int) (hashMap_dbg_hashConflictRate(ht) * 100));
+  })
+
+  DBG(DBG_LVL_DETAILED, "%s: risizing with num_elem=%ld, size_k=%ld size_v=%ld\n", P(ht)->of_what, (long) P(ht)->num_elem << 1, (long) P(ht)->size_k, (long) P(ht)->size_v);
+  hashMap_t newMap = hashMap_new__i(P(ht)->hashes != NULL, P(ht)->num_elem << 1, P(ht)->size_k, P(ht)->size_v, P(ht)->of_what);
+  size_t size_tot = P(ht)->size_k + P(ht)->size_v;
+
+  HASHMAP_ITERATE(ht, usedHash, key, value, {
+    DBG(DBG_LVL_MAX, "%s: considering element with usedHash=%llX\n", P(ht)->of_what, (long long) usedHash);
+    hash_t hash = getHashOfPresent(ht, usedHash);
+    DBG(DBG_LVL_MAX, "%s: usedHash=%llX corresponds to full hash=%llX\n", P(ht)->of_what, (long long) usedHash, (long long) hash.v);
+
+    reducedHash_t newUsedHash = REDUCE_HASH(newMap, hash);
+    void *newKey = P(newMap)->table + newUsedHash * size_tot;
+    void *newValue = newKey + P(ht)->size_k;
+
+    memcpy(newKey, key, P(ht)->size_k);
+    memcpy(newValue, value, P(ht)->size_v);
+
+    if(P(newMap)->hashes) P(newMap)->hashes[newUsedHash] = hash_toCompact(hash);
+    else bitArray_set(P(newMap)->num_elem, P(newMap)->isPresent, newUsedHash);
+  })
+  SWAP(void *, P(newMap)->table, P(ht)->table)
+  SWAP(hash_compact_t *, P(newMap)->hashes, P(ht)->hashes)
+  SWAP(bitArray_t, P(newMap)->isPresent, P(ht)->isPresent)
+  SWAP(shift_t, P(newMap)->num_elem, P(ht)->num_elem)
+  hashMap_delete(newMap);
+}
+
+hash_t hashMap_set(hashMap_t ht, void *key, void *value){
+  DBG(DBG_LVL_DETAILED, "%s: set key value pair, with numElem=%d size_k=%d size_v=%d\n", P(ht)->of_what, P(ht)->num_elem, P(ht)->size_k, P(ht)->size_v);
+
+  size_t size_tot = P(ht)->size_k + P(ht)->size_v;
+  void *mapKey;
+  void *mapValue;
+
+  hash_t hash;
+  reducedHash_t usedHash;
+  if(hashMap_find(ht, key, &hash, 0)){ // key present, only add value
+    usedHash = REDUCE_HASH(ht, hash);
+    DBG(DBG_LVL_MAX, "%s: present key, hash=0x%llX, usedHash=0x%llX\n", P(ht)->of_what, (long long) hash.v, (long long) usedHash);
+
+    mapKey = P(ht)->table + usedHash * size_tot;
+    mapValue = mapKey + P(ht)->size_k;
+
+    memcpy(mapValue, value, P(ht)->size_v);
+  }else{
+    while(hash.v == 0){ // while illegal
+      resize(ht);
+      hashMap_find(ht, key, &hash, 1);
+    }
+
+    usedHash = REDUCE_HASH(ht, hash);
+    DBG(DBG_LVL_MAX, "%s: new key, hash=0x%llX, usedHash=0x%llX\n", P(ht)->of_what, (long long) hash.v, (long long) usedHash);
+
+    P(ht)->num_curr_elem++;
+    if(P(ht)->hashes) P(ht)->hashes[usedHash] = hash_toCompact(hash);
+    else bitArray_set(P(ht)->num_elem, P(ht)->isPresent, usedHash);
+
+    mapKey = P(ht)->table + usedHash * size_tot;
+    mapValue = mapKey + P(ht)->size_k;
+
+    memcpy(mapValue, value, P(ht)->size_v);
+    memcpy(mapKey, key, P(ht)->size_k);
   }
 
-  return 1;
+
+  ON_DBG(DBG_LVL_TOFIX, {
+    if(usedHash == 0) FAIL("%s: set: usedHash == 0, which is illegal\n", P(ht)->of_what)
+    if(!hash_eq(hashMap_getPos(ht, key), hash)) FAIL("%s: set: key's position can't be obtained from the key\n", P(ht)->of_what)
+    if(hashMap_getKey(ht, hash) != mapKey) FAIL("%s: set: key has the wrong ptr in the table\n", P(ht)->of_what)
+    if(hashMap_getValue(ht, hash) != mapValue) FAIL("%s: set: value has the wrong ptr in the table\n", P(ht)->of_what)
+  })
+
+  return hash;
 }

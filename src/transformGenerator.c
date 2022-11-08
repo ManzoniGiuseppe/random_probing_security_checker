@@ -1,0 +1,127 @@
+//This file is part of the program Random Probing Security Checker, which checks the random probing security properties of a given gadget
+//Copyright (C) 2022  Giuseppe Manzoni
+//This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+//This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+//You should have received a copy of the GNU General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+#include "transformGenerator.h"
+#include "hashMap.h"
+#include "bdd.h"
+#include "mem.h"
+
+
+#define DBG_FILE  "transformGenerator"
+#define DBG_LVL DBG_TRANSFORMGENERATOR
+
+
+static void fnGenerator(bdd_t bdd, bdd_fn_t *x, bdd_fn_t *ret, gadget_t *g){
+  for(wire_t i = 0; i < g->numTotOuts; i++){
+    DBG(DBG_LVL_DETAILED, "Executing gadget, operation %d.\n", i);
+    gadget_fnOperation_t op = g->op[i];
+
+    if(op.operation == GADGET_IN){
+      ret[op.outWire] = x[op.inWire[0]];
+      continue;
+    }
+
+    bdd_fn_t v0 = ret[op.inWire[0]];
+    if(op.operation == GADGET_NOT){
+      ret[op.outWire] = bdd_op_not(bdd, v0);
+      continue;
+    }
+
+    bdd_fn_t v1 = ret[op.inWire[1]];
+    switch(op.operation){
+      case GADGET_BIN_NOR: ret[op.outWire] = bdd_op_and(bdd, bdd_op_not(bdd, v0), bdd_op_not(bdd, v1)); break;
+      case GADGET_BIN_NIMPLY: ret[op.outWire] = bdd_op_and(bdd, v0, bdd_op_not(bdd, v1)); break;
+      case GADGET_BIN_XOR: ret[op.outWire] = bdd_op_xor(bdd, v0, v1); break;
+      case GADGET_BIN_NAND: ret[op.outWire] = bdd_op_not(bdd, bdd_op_and(bdd, v0, v1)); break;
+      case GADGET_BIN_AND: ret[op.outWire] = bdd_op_and(bdd, v0, v1); break;
+      case GADGET_BIN_XNOR: ret[op.outWire] = bdd_op_not(bdd, bdd_op_xor(bdd, v0, v1)); break;
+      case GADGET_BIN_IMPLY: ret[op.outWire] = bdd_op_not(bdd, bdd_op_and(bdd, v0, bdd_op_not(bdd, v1))); break;
+      case GADGET_BIN_OR: ret[op.outWire] = bdd_op_not(bdd, bdd_op_and(bdd, bdd_op_not(bdd, v0), bdd_op_not(bdd, v1))); break;
+    }
+  }
+}
+
+
+typedef struct {
+  bdd_fn_t *rowIndex2bdd;
+  bdd_t bddStorage;
+  pow2size_t rowIndex2bdd_size;
+} transformGenerator_storage_t;
+#define P(pub)   ((transformGenerator_storage_t *) ((transformGenerator_t)(pub)).transformGenerator)
+
+transformGenerator_t transformGenerator_alloc(rowHashed_t rows, gadget_t *g){
+  pow2size_t rowSize = rowHashed_getSize(rows);
+
+  DBG(DBG_LVL_MINIMAL, "new with rowSize=%d.\n", rowSize);
+  transformGenerator_t ret = { mem_calloc(sizeof(transformGenerator_storage_t), 1, "transformGenerator_alloc's main struct") };
+  P(ret)->bddStorage = bdd_storage_alloc();
+  P(ret)->rowIndex2bdd = mem_calloc(sizeof(bdd_fn_t), rowSize, "transformGenerator_alloc's rowIndex2bdd");
+  P(ret)->rowIndex2bdd_size = rowSize;
+
+  DBG(DBG_LVL_DETAILED, "gettng bdd of return wires.\n");
+  bdd_fn_t core[g->numTotOuts];
+  {
+    bdd_fn_t x[g->numTotIns];
+    for(wire_t i = 0; i < g->numTotIns; i++){
+      x[i] = bdd_val_single(P(ret)->bddStorage, i);
+    }
+    fnGenerator(P(ret)->bddStorage, x, core, g);
+  }
+
+  DBG(DBG_LVL_DETAILED, "saving bdds of all used rows.\n");
+  wire_t numTotOuts = rowHashed_numTotOuts(rows);
+  ROWHASHED_ITERATE(rows, index, {
+    bitArray_t row = rowHashed_get(rows, index);
+
+    bdd_fn_t rowFn = bdd_val_const(P(ret)->bddStorage, 0);
+
+    ROW_ITERATE_OVER_ONES(numTotOuts, row, i, {
+      rowFn = bdd_op_xor(P(ret)->bddStorage, rowFn, core[i]);
+    })
+
+    P(ret)->rowIndex2bdd[index.v] = rowFn;
+  })
+  return ret;
+}
+
+void transformGenerator_free(transformGenerator_t s){
+  DBG(DBG_LVL_MINIMAL, "freeing\n");
+  mem_free(P(s)->rowIndex2bdd);
+  bdd_storage_free(P(s)->bddStorage);
+  mem_free(P(s));
+}
+
+
+// Fast Walsh-Hadamard transform
+__attribute__((unused)) static void inPlaceTransform(fixed_cell_t *tr, size_t size){ // tr must have 1 for false, -1 for true, can accept partially transformed inputs too
+  if (size == 1) return;
+
+  size_t h = size/2;
+  for (size_t i = 0; i < h; i++){
+    fixed_cell_t a = tr[i];
+    fixed_cell_t b = tr[i+h];
+    tr[i] = a + b;
+    tr[i+h] = a - b;
+  }
+
+  inPlaceTransform(tr, h);
+  inPlaceTransform(tr+h, h);
+}
+
+void transformGenerator_getTranform(transformGenerator_t s, rowHash_t row, wire_t numMaskedIns, wire_t numRnds, fixed_cell_t *transform){ // transform[1ll << numMaskedIns]
+  DBG(DBG_LVL_DETAILED, "getting the flattened inputs for numMaskedIns=%d...\n", numMaskedIns);
+  bdd_fn_t inputs[1ll << numMaskedIns];
+  bdd_get_flattenedInputs(P(s)->bddStorage, P(s)->rowIndex2bdd[row.v], numMaskedIns, inputs);
+
+  for(wire_t i = 0; i < (1ll << numMaskedIns); i++){
+    DBG(DBG_LVL_DETAILED, "getting the sum of randoms for input combination %lX...\n", (long)i);
+    transform[i] = bdd_get_sumRandomsPN1(P(s)->bddStorage, inputs[i], numRnds);
+  }
+
+  DBG(DBG_LVL_DETAILED, "calculating the transform...\n");
+  inPlaceTransform(transform, 1ll << numMaskedIns);
+  DBG(DBG_LVL_DETAILED, "calculated.\n");
+}

@@ -1,3 +1,9 @@
+//This file is part of the program Random Probing Security Checker, which checks the random probing security properties of a given gadget
+//Copyright (C) 2022  Giuseppe Manzoni
+//This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+//This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+//You should have received a copy of the GNU General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -6,19 +12,17 @@
 #include "gadget.h"
 
 
-row_t probeComb_getHighestRow(probeComb_t curr_comb, row_t output){
-  row_t ret = output;
-  for(shift_t i = 0; i < NUM_PROBES; i++){
-    if(curr_comb[i] > 0){
-      ret = row_or(ret, row_singleInput(i + NUM_OUTS * D));
-    }
-  }
-  return ret;
+void probeComb_getHighestRow(probeComb_t curr_comb, gadget_t *g, bitArray_t ret){
+  bitArray_zero(g->numTotOuts, ret);
+
+  for(wire_t i = 0; i < g->numProbes; i++)
+    if(curr_comb[i] > 0)
+      bitArray_set(g->numTotOuts, ret, i + g->numOuts * g->d);
 }
 
 
 // return the logaritm, how much it needs to be shifted
-shift_t probeComb_getRowMulteplicity(probeComb_t curr_comb){
+shift_t probeComb_getRowMulteplicity(probeComb_t curr_comb, gadget_t *g){
   // comb: 1,3,4,0,1
   // row:  0,0,0,0,0
 
@@ -33,7 +37,7 @@ shift_t probeComb_getRowMulteplicity(probeComb_t curr_comb){
 
 
   long ret=0;
-  for(shift_t i = 0; i < NUM_PROBES; i++){
+  for(wire_t i = 0; i < g->numProbes; i++){
     if(curr_comb[i] > 1){
       ret += curr_comb[i]-1;  // sum of even/odd binomial (n k) is 2^(n-1)
     }
@@ -42,12 +46,12 @@ shift_t probeComb_getRowMulteplicity(probeComb_t curr_comb){
   return ret;
 }
 
-bool probeComb_tryIncrement(probeComb_t curr_comb, shift_t* curr_count){ // inited respectively to all 0s and 0.
-  shift_t to_inc;
-  if(*curr_count < MAX_COEFF) to_inc = 0; // if there are probes left, increment normally
+bool probeComb_tryIncrement(probeComb_t curr_comb, wire_t* curr_count, wire_t maxCoeff, gadget_t *g){ // inited respectively to all 0s and 0.
+  wire_t to_inc;
+  if(*curr_count < maxCoeff) to_inc = 0; // if there are probes left, increment normally
   else { // already hit the maximum.
-    shift_t i;
-    for(i = 0; i < NUM_PROBES && curr_comb[i] == 0; i++);  // find lowest position != 0
+    wire_t i;
+    for(i = 0; i < g->numProbes && curr_comb[i] == 0; i++);  // find lowest position != 0
 
     *curr_count -= curr_comb[i];  // consider is as if it has hit its maximum and increment it
     curr_comb[i] = 0;
@@ -55,8 +59,8 @@ bool probeComb_tryIncrement(probeComb_t curr_comb, shift_t* curr_count){ // init
   }
 
   bool carry = 1;
-  for(shift_t i = to_inc; i < NUM_PROBES && carry; i++){
-    if(curr_comb[i] < gadget_probeMulteplicity[i]){ // if can still increment without overflowing
+  for(wire_t i = to_inc; i < g->numProbes && carry; i++){
+    if(curr_comb[i] < g->probeMulteplicity[i]){ // if can still increment without overflowing
       curr_comb[i] += 1;
       *curr_count += 1;
       carry = 0;
@@ -70,41 +74,29 @@ bool probeComb_tryIncrement(probeComb_t curr_comb, shift_t* curr_count){ // init
 }
 
 
-static double binomial(int n, int k){
-  if(k > n-k) return binomial(n, n-k);
-
+double probeComb_getProbesMulteplicity(probeComb_t curr_comb, gadget_t *g){
   double ret = 1.0;
-  for(int i = n-k+1; i <= n; i++)
-    ret *= i;
-  for(int i = 2; i <= k; i++)
-    ret /= i;
-
-  return ret;
-}
-
-double probeComb_getProbesMulteplicity(probeComb_t curr_comb){
-  double ret = 1.0;
-  for(shift_t i = 0; i < NUM_PROBES; i++)
-    ret *= binomial(gadget_probeMulteplicity[i], curr_comb[i]);
+  for(wire_t i = 0; i < g->numProbes; i++)
+    ret *= binomial(g->probeMulteplicity[i], curr_comb[i]);
   return ret;
 }
 
 
-void probeComb_firstWhoseImageIs(row_t highest_row, probeComb_t ret_comb, shift_t *ret_count){
+void probeComb_firstWhoseImageIs(bitArray_t highest_row, probeComb_t ret_comb, wire_t *ret_count, wire_t maxCoeff, gadget_t *g){
   *ret_count = 0;
-  for(shift_t i = 0; i < NUM_PROBES; i++){
-    *ret_count += ret_comb[i] = row_hasInput(highest_row, i + NUM_OUTS * D);
+  for(wire_t i = 0; i < g->numProbes; i++){
+    *ret_count += ret_comb[i] = bitArray_get(g->numTotOuts, highest_row, i + g->numOuts * g->d);
   }
-  if(*ret_count > MAX_COEFF) FAIL("probeComb: more probes than MAX_COEFF")
+  if(*ret_count > maxCoeff) FAIL("probeComb: more probes than maxCoeff")
 }
 
-bool probeComb_nextWithSameImage(probeComb_t curr_comb, shift_t *curr_count){
-  shift_t to_inc;
-  if(*curr_count < MAX_COEFF) to_inc = 0; // if there are probes left, increment normally
+bool probeComb_nextWithSameImage(probeComb_t curr_comb, wire_t *curr_count, wire_t maxCoeff, gadget_t *g){
+  wire_t to_inc;
+  if(*curr_count < maxCoeff) to_inc = 0; // if there are probes left, increment normally
   else { // already hit the maximum.
-    shift_t i;
-    for(i = 0; i < NUM_PROBES && curr_comb[i] <= 1; i++);  // find lowest position that can be decremented
-    if(i == NUM_PROBES) return 0; // can't move any bit to increment.
+    wire_t i;
+    for(i = 0; i < g->numProbes && curr_comb[i] <= 1; i++);  // find lowest position that can be decremented
+    if(i == g->numProbes) return 0; // can't move any bit to increment.
 
     *curr_count -= curr_comb[i]-1;  // consider is as if it has hit its maximum and increment it
     curr_comb[i] = 1;
@@ -112,10 +104,10 @@ bool probeComb_nextWithSameImage(probeComb_t curr_comb, shift_t *curr_count){
   }
 
   bool carry = 1;
-  for(shift_t i = to_inc; i < NUM_PROBES && carry; i++){
+  for(wire_t i = to_inc; i < g->numProbes && carry; i++){
     if(curr_comb[i] == 0){
       continue; // can't change the highest_row relative to the probe combination
-    }else if(curr_comb[i] < gadget_probeMulteplicity[i]){ // if can still increment without overflowing
+    }else if(curr_comb[i] < g->probeMulteplicity[i]){ // if can still increment without overflowing
       curr_comb[i] += 1;
       *curr_count += 1;
       carry = 0;
