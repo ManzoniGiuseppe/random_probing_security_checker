@@ -216,4 +216,4 @@ for it in toPrint:
 # save
 
 #plt.ylim(0.01, 0.1)
-plt.savefig('toDelete_out.png', bbox_inches='tight')#, pad_inches=0)
+plt.savefig('.plot_time_acc.out.png', bbox_inches='tight')#, pad_inches=0)
