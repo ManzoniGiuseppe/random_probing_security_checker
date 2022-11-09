@@ -19,7 +19,7 @@ typedef struct { void *rowHashed; } rowHashed_t;
 #endif
 
 
-T__THREAD_SAFE rowHashed_t rowHashed_alloc(void *info, wire_t numTotOuts, bitArray_t firstRow, bool (*tryNext)(void *info, bitArray_t next));
+T__THREAD_SAFE rowHashed_t rowHashed_alloc(bitArray_iterator_t itRows, wire_t numTotOuts);
 void rowHashed_free(rowHashed_t storage);
 
 T__THREAD_SAFE pow2size_t rowHashed_getSize(rowHashed_t storage);

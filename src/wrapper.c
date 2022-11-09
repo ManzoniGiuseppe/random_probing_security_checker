@@ -10,6 +10,7 @@
 #include "rowHashed.h"
 #include "rowInfo.h"
 #include "subrowHashed.h"
+#include "bitArray.h"
 #include "mem.h"
 
 
@@ -75,7 +76,12 @@ wrapper_t wrapper_new(
   };
   BITARRAY_DEF_VAR(g->numTotOuts, firstRow)
   row_first(g->numTotOuts, firstRow);
-  P(ret)->rows = rowHashed_alloc(&tryNext_info, g->numTotOuts, firstRow, tryNext);
+  bitArray_iterator_t itRows = (bitArray_iterator_t){
+    .info = &tryNext_info,
+    .first = firstRow,
+    .tryNext = tryNext
+  };
+  P(ret)->rows = rowHashed_alloc(itRows, g->numTotOuts);
   printTimediff(ret);
 
   printf("%s: 1/6: initial calculation of transform of all rows\n", what);
@@ -88,7 +94,7 @@ wrapper_t wrapper_new(
   printTimediff(ret);
 
   printf("%s: 3/6: calculate which rows are unique by the info/values of their subrows\n", what);
-  P(ret)->subrows = subrowHashed_new(P(ret)->rows, &tryNext_info, firstRow, tryNext, P(ret)->rowInfo.rowIndexedSet, row2info);
+  P(ret)->subrows = subrowHashed_new(P(ret)->rows, itRows, P(ret)->rowInfo.rowIndexedSet, row2info);
   printTimediff(ret);
 
   printf("%s: 4/6: calculate the SD for each row unique by the info/values of their subrows\n", what);

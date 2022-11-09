@@ -23,7 +23,7 @@ typedef struct{
 #define P(pub)   ((subrowHashed_storage_t *) ((subrowHashed_t)(pub)).subrowHashed)
 
 
-T__THREAD_SAFE subrowHashed_t subrowHashed_new(rowHashed_t rows, void *infoNext, bitArray_t first, bool (*tryNext)(void *infoNext, bitArray_t next), void *infoR2I, hash_t (*row2info)(void* infoR2I, rowHash_t row)){
+T__THREAD_SAFE subrowHashed_t subrowHashed_new(rowHashed_t rows, bitArray_iterator_t itRows, void *infoR2I, hash_t (*row2info)(void* infoR2I, rowHash_t row)){
   DBG(DBG_LVL_MINIMAL, "new\n")
   pow2size_t rowsSize = rowHashed_getSize(rows);
   wire_t numTotOuts = rowHashed_numTotOuts(rows);
@@ -32,9 +32,7 @@ T__THREAD_SAFE subrowHashed_t subrowHashed_new(rowHashed_t rows, void *infoNext,
   rowIndexedSet_t s = rowIndexedSet_new(rowsSize, sizeof(hash_compact_t) * (numTotOuts+1), "subrowHashed's unique");
 
   DBG(DBG_LVL_DETAILED, "filling it up...\n")
-  BITARRAY_DEF_VAR(numTotOuts, it)
-  bitArray_copy(numTotOuts, first, it);
-  do{
+  BITARRAY_ITERATE(numTotOuts, itRows, it, {
     rowHash_t row = rowHashed_hash(rows, it);
     DBG(DBG_LVL_MAX, "generating val for rowIndexedSet, for row with hash %lld\n", (long long) row.v)
     hash_compact_t val[numTotOuts+1];
@@ -52,7 +50,7 @@ T__THREAD_SAFE subrowHashed_t subrowHashed_new(rowHashed_t rows, void *infoNext,
     }
     DBG(DBG_LVL_MAX, "adding val in rowIndexedSet, for row with hash %lld\n", (long long) row.v)
     rowIndexedSet_add(s, row, val);
-  }while(tryNext(infoNext, it));
+  })
 
   DBG(DBG_LVL_DETAILED, "creating memory.\n")
   subrowHashed_t ret = { mem_calloc(sizeof(subrowHashed_storage_t), 1, "subrowHashed's main structure") };

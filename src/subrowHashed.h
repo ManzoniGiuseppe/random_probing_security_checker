@@ -18,7 +18,7 @@ typedef struct { void *subrowHashed; } subrowHashed_t;
   #error "unsupported HASH_WIDTH > 32"
 #endif
 
-T__THREAD_SAFE subrowHashed_t subrowHashed_new(rowHashed_t rows, void *infoNext, bitArray_t firstRow, bool (*tryNext)(void *infoNext, bitArray_t next), void *infoR2I, hash_t (*row2info)(void* infoR2I, rowHash_t row));
+T__THREAD_SAFE subrowHashed_t subrowHashed_new(rowHashed_t rows, bitArray_iterator_t itRows, void *infoR2I, hash_t (*row2info)(void* infoR2I, rowHash_t row));
 void subrowHashed_delete(subrowHashed_t storage);
 
 

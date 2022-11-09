@@ -181,6 +181,22 @@ static inline void bitArray_toStr(shift_t bits, bitArray_t in, char *ret){ // re
 
 
 
+
+typedef struct {
+  void *info;
+  bitArray_t first;
+  bool (*tryNext)(void *info, bitArray_t next);
+} bitArray_iterator_t;
+
+#define BITARRAY_ITERATE(bits, iterator, IT, CODE) {\
+  BITARRAY_DEF_VAR(bits, IT)\
+  bitArray_copy(bits, iterator.first, IT);\
+  do{\
+    { CODE }\
+  }while(iterator.tryNext(iterator.info, IT));\
+}
+
+
 #undef DBG_FILE
 #undef DBG_LVL
 

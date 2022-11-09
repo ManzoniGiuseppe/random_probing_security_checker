@@ -24,6 +24,9 @@ typedef unsigned gadget_wireId_t;
 #define GADGET_NOT   8
 #define GADGET_IN    9
 
+#define GADGET_NUM_BIN_OPS  8
+#define GADGET_NUM_OPS  10
+
 // assumes:
 //  - all shares of all outs must be set
 typedef struct {

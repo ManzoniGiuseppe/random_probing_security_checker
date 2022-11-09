@@ -22,19 +22,16 @@ typedef struct{
 #define P(pub)   ((rowHashed_storage_t *) ((rowHashed_t)(pub)).rowHashed)
 
 
-rowHashed_t rowHashed_alloc(void *info, wire_t numTotOuts, bitArray_t first, bool (*tryNext)(void *info, bitArray_t next)){
+rowHashed_t rowHashed_alloc(bitArray_iterator_t itRows, wire_t numTotOuts){
   DBG(DBG_LVL_MINIMAL, "alloc\n")
   rowHashed_t ret = { mem_calloc(sizeof(rowHashed_storage_t), 1, "rowHashed main") };
   P(ret)->numTotOuts = numTotOuts;
   DBG(DBG_LVL_DETAILED, "adding rows...\n")
   P(ret)->set = hashSet_new(BITARRAY_I_BYTE_SIZE(numTotOuts), "rowHashed_alloc");
-  {
-    BITARRAY_DEF_VAR(numTotOuts, key)
-    bitArray_copy(numTotOuts, first, key);
-    do{
-      hashSet_add(P(ret)->set, key);
-    }while(tryNext(info, key));
-  }
+
+  BITARRAY_ITERATE(numTotOuts, itRows, key, {
+    hashSet_add(P(ret)->set, key);
+  })
 
   P(ret)->numRows = hashSet_getNumElem(P(ret)->set);
   DBG(DBG_LVL_MINIMAL, "fill rate = %d%%, hash conflict rate = %d%%\n", (int)(hashSet_dbg_fill(P(ret)->set) * 100), (int)(hashSet_dbg_hashConflictRate(P(ret)->set) * 100))
