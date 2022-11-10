@@ -2,5 +2,5 @@
 /.rpsc.out
 /.vraps.out
 /.plot_time_acc.out.png
-/srcTest/.transform.expected.*
+/test/.transform.expected.*
 /rpsc
