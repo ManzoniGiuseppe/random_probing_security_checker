@@ -15,6 +15,13 @@ import matplotlib
 from matplotlib import pyplot as plt
 
 
+# option
+
+implementation_legend_location='upper center'
+gadget_legend_location='upper left'
+use_error=False
+graph_ylim=None
+
 # handle the gadgets
 
 def evalFn(p, coeff):
@@ -30,10 +37,10 @@ def evalFn(p, coeff):
   return ret
 
 def findTreshold(coeff):
-  p = 0.001
+  p = 0.0001
   while evalFn(p, coeff) < p and p < 1.0:
-    p += 0.001
-  p -= 0.001
+    p += 0.0001
+  p -= 0.0001
   return p
 
 def getMaxCoeffStatus(dir):
@@ -100,9 +107,9 @@ if prefix == 'rps':
   toPrint += [[[], [], [], [], 'COR2', '*', '.rpsc.out', 'Cor2']]
   toPrint += [[[], [], [], [], 'COR1', 'x', '.rpsc.out', 'Cor1']]
 if prefix == 'rpc':
-  toPrint += [[[], [], [], [], 'COR1', 'o', '.rpsc.out', 'Cor1']]
-  toPrint += [[[], [], [], [], 'COR2', '+', '.rpsc.out', 'Cor2']]
-  toPrint += [[[], [], [], [], 'VRAPS', 'x', '.vraps.out', 'Vraps']]
+  toPrint += [[[], [], [], [], 'VRAPS', 'o', '.vraps.out', 'Vraps']]
+  toPrint += [[[], [], [], [], 'COR2', '*', '.rpsc.out', 'Cor2']]
+  toPrint += [[[], [], [], [], 'COR1', 'x', '.rpsc.out', 'Cor1']]
 
 
 toPrint_p = 0
@@ -157,7 +164,7 @@ for (num, (gadget, chosenMaxCoeff, color)) in enumerate(gadgetInfo):
     else:
       toPrint[i][toPrint_p] += [p_low]
       toPrint[i][toPrint_p_err] += [p_high - p_low]
-      toPrint[i][toPrint_time] += [time]
+      toPrint[i][toPrint_time] += [time if time > 0 else 0.001]
       toPrint[i][toPrint_color] += [num]
       print('  ' + toPrint[i][toPrint_name] + ': ' + str(p_low) + '~' +  str(p_high) + ' - ' + str(time))
 
@@ -195,14 +202,12 @@ for it in toPrint:
 # add legend
 
 
-legend1 = ax.legend(title="Implementation", loc='center right')
-#legend1 = ax.legend(title="Implementation", loc='upper right')
+legend1 = ax.legend(title="Implementation", loc=implementation_legend_location)
 ax.add_artist(legend1)
 
 legend_elements = scatter[1].legend_elements()
 
-#legend2 = ax.legend(legend_elements[0], [gadgetInfo[int(i[14:-2])][0].replace('__', ' d=') + ' c=' + str(gadgetInfo[int(i[14:-2])][1]) for i in legend_elements[1]], title="Gadget", loc='upper left')
-legend2 = ax.legend(legend_elements[0], [gadgetInfo[int(i[14:-2])][0].replace('__', ' d=') + ' c=' + str(gadgetInfo[int(i[14:-2])][1]) for i in legend_elements[1]], title="Gadget", loc='lower right')
+legend2 = ax.legend(legend_elements[0], [gadgetInfo[int(i[14:-2])][0].replace('__', ' d=') + ' c=' + str(gadgetInfo[int(i[14:-2])][1]) for i in legend_elements[1]], title="Gadget", loc=gadget_legend_location)
 ax.add_artist(legend2)
 
 
@@ -210,10 +215,11 @@ ax.add_artist(legend2)
 
 for it in toPrint:
   for j in range(len(it[toPrint_p_err])):
-#    ax.errorbar(x=[it[toPrint_time][j]], y=[it[toPrint_p][j]], yerr=[[0.0], [it[toPrint_p_err][j]] ], xerr = 0, marker=it[toPrint_marker], fmt='o--', c=gadgetInfo[ it[toPrint_color][j] ][2], linewidth=0.7)
-    a=1
+    if use_error:
+      ax.errorbar(x=[it[toPrint_time][j]], y=[it[toPrint_p][j]], yerr=[[0.0], [it[toPrint_p_err][j]] ], xerr = 0, marker=it[toPrint_marker], fmt='o--', c=gadgetInfo[ it[toPrint_color][j] ][2], linewidth=0.7)
 
 # save
 
-#plt.ylim(0.01, 0.1)
+if graph_ylim != None:
+  plt.ylim(*graph_ylim)
 plt.savefig('.plot_time_acc.out.png', bbox_inches='tight')#, pad_inches=0)

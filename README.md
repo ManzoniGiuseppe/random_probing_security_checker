@@ -40,12 +40,14 @@ Note: In the .sage files:
 
 ## Graphs
 
-the paper's graphs were made with (and by fiddling the internal parameters):
+the paper's graphs were made with (and by fiddling the internal parameters to improve the layout):
 
     ./plot_test_fn.py .vraps.out/otpoePaper_add.py__3/rpsVraps/*.success
 
+
     ./plot_time_acc.py rps isw_mul.py__3:{3:green,5:blue,6:orange,8:black}
     ./plot_time_acc.py rps vrapsPaper_mul.sage:{3:green,4:blue,5:orange,6:black}
+    ./plot_time_acc.py rps otpoePaper_mul.py__3:{3:green,4:blue,5:orange}
 
     ./plot_time_acc.py rps vrapsPaper_add_v3.sage:{3:green,5:blue,7:orange,9:black,12:fuchsia,14:purple}
     ./plot_time_acc.py rps otpoePaper_small_add.sage:{3:green,5:blue,7:orange,9:black}
@@ -54,7 +56,20 @@ the paper's graphs were made with (and by fiddling the internal parameters):
     ./plot_time_acc.py rps vrapsPaper_copy.sage:{3:green,5:blue,7:orange,12:fuchsia,13:black}
     ./plot_test_fn.py .{rpsc,vraps}.out/vrapsPaper_copy.sage/rps*/13.success
 
-The directory '.vraps.out' must be created by a script similar to 'generate_out.sh' only that parses VRAPS' output
+
+    ./plot_time_acc.py rpc vrapsPaper_mul.sage:{2:green,3:blue,4:orange,5:black}
+    ./plot_time_acc.py rpc otpoePaper_small_mul.sage:{2:green,3:blue,4:orange,5:black}
+
+    ./plot_time_acc.py rpc vrapsPaper_add_v3.sage:{2:green,3:blue,4:orange,5:black}
+    ./plot_time_acc.py rpc otpoePaper_small_add.sage:{2:green,3:blue,4:orange,5:black}
+
+    ./plot_time_acc.py rpc otpoePaper_copy.py__3:{3:green,4:blue,5:orange,6:black}
+
+    ./plot_time_acc.py rpc otpoePaper_small_refresh.sage:{3:green,4:blue,5:orange,6:black}
+    ./plot_time_acc.py rpc isw_refresh.py__3:{3:green,5:blue,7:orange,9:black}
+
+This needs a directory '.vraps.out' that should be created by a script similar to 'generate_out.sh' only that parses VRAPS' output.
+
 The 'plot_time_acc.py' script will create the file '.plot_time_acc.out.png'
 
 ## Tests

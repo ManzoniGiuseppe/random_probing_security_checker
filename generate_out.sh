@@ -6,7 +6,8 @@
 #You should have received a copy of the GNU General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 mainDir=.rpsc.out
-maxAllowedCoeff=11
+maxAllowedCoeff=5
+tiemout=120m
 
 # 1: in file name
 # 2: in options
@@ -31,7 +32,7 @@ function findCoeffAndSaveResults(){
     fi
     if [ ! -e $out/$c.success ] ; then
       echo "calculating ./rpsc --sage $file $op -c $c > $out"
-      { timeout 30m bash -c "time ./rpsc --sage $file $op -c $c" ; } >$mainDir/_tmp_out 2>&1
+      { timeout $timeout bash -c "time ./rpsc --sage $file $op -c $c" ; } >$mainDir/_tmp_out 2>&1
       status=$?
 
       if [ $status -eq 0 ] ; then
