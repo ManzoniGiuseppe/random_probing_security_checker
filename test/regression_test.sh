@@ -7,7 +7,7 @@
 
 
 allowedOp=':rpsCor1:rpsCor2:rpsCor3:rpcCor1:rpcCor2:'
-maxC=1
+maxC=4
 
 
 
@@ -61,6 +61,11 @@ function execGadget(){
   name="$1"
   file="$2"
 
+  if [ $(cat .regression.test | grep -a "^${name}/" | wc -l) -eq 0 ] ; then
+    echo missing $name
+    return
+  fi
+
   echo $name
 
   d=$(grep -a "^#SHARES " $file | sed "s/^#SHARES //")
@@ -91,7 +96,7 @@ fi
 echo compiling...
 
 pushd .. >/dev/null
-./compile.sh --check
+./compile.sh --check "$@"
 status=$?
 popd >/dev/null
 
