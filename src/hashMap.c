@@ -5,8 +5,7 @@
 //You should have received a copy of the GNU General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <string.h>
-#include <threads.h>
-#include <stdatomic.h>
+#include "multithread.h"
 
 #include "types.h"
 #include "hashMap.h"
@@ -34,8 +33,10 @@ typedef struct{
   pow2size_t num_elem;
   uint32_t size_k;
   uint32_t size_v;
-  atomic_uint_fast64_t hash_requests;
-  atomic_uint_fast64_t hash_lookups;
+  #if IS_DBG(DBG_LVL_TOFIX)
+    multithread_fu64_t hash_requests;
+    multithread_fu64_t hash_lookups;
+  #endif
   size_t num_curr_elem;
   const char *of_what;
 } hashMap_priv_t;
@@ -60,10 +61,14 @@ size_t hashMap_getNumCurrElem(hashMap_t ht){
 double hashMap_dbg_fill(hashMap_t ht){
   return P(ht)->num_curr_elem / (double) P(ht)->num_elem;
 }
-double hashMap_dbg_hashConflictRate(hashMap_t ht){
-  uint_fast64_t hash_requests = atomic_load_explicit(&P(ht)->hash_requests, memory_order_relaxed);
-  uint_fast64_t hash_lookups = atomic_load_explicit(&P(ht)->hash_lookups, memory_order_relaxed);
-  return (hash_lookups - hash_requests) / (double) hash_requests;
+double hashMap_dbg_hashConflictRate(__attribute__((unused)) hashMap_t ht){
+  #if IS_DBG(DBG_LVL_TOFIX)
+    uint_fast64_t hash_requests = multithread_fu64_get(&P(ht)->hash_requests, MULTITHREAD_SYNC_VAL);
+    uint_fast64_t hash_lookups = multithread_fu64_get(&P(ht)->hash_lookups, MULTITHREAD_SYNC_VAL);
+    return (hash_lookups - hash_requests) / (double) hash_requests;
+  #else
+    FAIL("hashMap: Trying to get a dbg information when dbg is disabled!\n")
+  #endif
 }
 
 //---- new/delete
@@ -82,8 +87,10 @@ T__THREAD_SAFE hashMap_t hashMap_new__i(bool saveHash, pow2size_t num_elem, size
   P(ret)->isPresent = saveHash ? NULL : BITARRAY_CALLOC(num_elem, ofWhat);
   P(ret)->of_what = ofWhat;
 
-  atomic_init(& P(ret)->hash_requests, 0);
-  atomic_init(& P(ret)->hash_lookups, 0);
+  #if IS_DBG(DBG_LVL_TOFIX)
+    multithread_fu64_init(& P(ret)->hash_requests, 0);
+    multithread_fu64_init(& P(ret)->hash_lookups, 0);
+  #endif
   return ret;
 }
 
@@ -111,13 +118,18 @@ static inline bool isUsedR(hashMap_t ht, reducedHash_t r){
   else return bitArray_get(P(ht)->num_elem, P(ht)->isPresent, r);
 }
 
-static bool hashMap_find(hashMap_t ht, void *key, hash_t *ret, bool stopAtFirstEmpty){ // set hash if found, set first empty if present, illegal 0 otherwise
-  atomic_fetch_add_explicit(&P(ht)->hash_requests, 1, memory_order_relaxed);
+T__THREAD_SAFE static bool hashMap_find(hashMap_t ht, void *key, hash_t *ret, bool stopAtFirstEmpty){ // set hash if found, set first empty if present, illegal 0 otherwise
+  #if IS_DBG(DBG_LVL_TOFIX)
+    multithread_fu64_fetch_add(&P(ht)->hash_requests, 1, MULTITHREAD_SYNC_VAL);
+  #endif
+
   size_t size_tot = P(ht)->size_k + P(ht)->size_v;
   *ret = (hash_t){ 0 }; // illegal return for fail
 
   for(int counter = 0; counter < HASHMAP_HASH_ATTEMPTS; counter++){
-    atomic_fetch_add_explicit(&P(ht)->hash_lookups, 1, memory_order_relaxed);
+    #if IS_DBG(DBG_LVL_TOFIX)
+      multithread_fu64_fetch_add(&P(ht)->hash_lookups, 1, MULTITHREAD_SYNC_VAL);
+    #endif
     hash_t base = hash_calculate(P(ht)->size_k, key, counter);
     base.v &= ~(uint_fast64_t) MASK_OF(HASHMAP_CONTIGUOUS_BITS);
 

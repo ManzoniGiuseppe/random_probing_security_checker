@@ -30,6 +30,20 @@ T__THREAD_SAFE static void getInfo(__attribute__((unused)) void *getInfo_param, 
   ret->hasCorr = 0;
 }
 
+T__THREAD_SAFE static void iterateOverUniqueBySubrows(gadget_t *g, __attribute__((unused)) wire_t maxCoeff, __attribute__((unused)) wire_t t, wrapper_t w, int thread){
+  double sdMax = 1 - ldexp(1.0, -g->numIns);
+
+  WRAPPER_ITERATE_SUBROWS(w, thread, i, row, {
+    ITERATE_OVER_SUB_ROWS(g->numTotOuts, row, sub, {
+      rowInfo_v_t *info = wrapper_getRowInfo(w, sub);
+      if(info->hasCorr){
+        wrapper_setSdOfRow(w, i, 0, sdMax);
+        break;
+      }
+    })
+  })
+}
+
 void calc_rpsCor3(gadget_t *g, wire_t maxCoeff, double *ret_coeffs){
   double sdMax = 1 - ldexp(1.0, -g->numIns);
 
@@ -39,35 +53,17 @@ void calc_rpsCor3(gadget_t *g, wire_t maxCoeff, double *ret_coeffs){
     .getInfo_param = NULL,
     .getInfo = getInfo
   };
-  wrapper_t w = wrapper_new(g, maxCoeff, -1, w_gen, "rpsCor3");
-
-  pow2size_t subrowsSize = wrapper_subrowSize(w);
-  bitArray_t isBySubrow = BITARRAY_CALLOC(subrowsSize, "rpsCor3");
-
-  WRAPPER_ITERATE_SUBROWS(w, i, row, {
-    ITERATE_OVER_SUB_ROWS(g->numTotOuts, row, sub, {
-      rowInfo_v_t *info = wrapper_getRowInfo(w, sub);
-      if(info->hasCorr){
-        bitArray_set(subrowsSize, isBySubrow, i.v);
-        break;
-      }
-    })
-  })
-
-  wrapper_freeRowInfo(w);
-  wrapper_startCalculatingCoefficients(w);
+  wrapper_t w = wrapper_new(g, maxCoeff, -1, w_gen, 1, iterateOverUniqueBySubrows, "rpsCor3");
 
   memset(ret_coeffs, 0, sizeof(double) * (g->numTotProbes+1));
   BITARRAY_DEF_VAR(g->numTotOuts, row)
   row_first(g->numTotOuts, row);
   do{
     subrowHash_t subrowHash = wrapper_getRow2Subrow(w, row);
-    bool is = bitArray_get(subrowsSize, isBySubrow, subrowHash.v);
-    if(is)
-      calcUtils_addTotProbeMulteplicity(ret_coeffs, sdMax, maxCoeff, g, row);
+    double sd = wrapper_getSdOfRow(w, subrowHash, 0);
+    calcUtils_addTotProbeMulteplicity(ret_coeffs, sd, maxCoeff, g, row);
   }while(row_tryNext_probeLeqMaxCoeff(row, g->numOuts * g->d, g->numTotOuts, maxCoeff));
 
-  mem_free(isBySubrow);
   wrapper_delete(w);
 
   for(wire_t i = maxCoeff+1; i <= g->numTotProbes; i++)

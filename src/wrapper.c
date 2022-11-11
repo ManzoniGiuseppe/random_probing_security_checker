@@ -12,10 +12,14 @@
 #include "subrowHashed.h"
 #include "bitArray.h"
 #include "mem.h"
-
+#include "multithread.h"
 
 #define DBG_FILE "wrapper"
 #define DBG_LVL DBG_WRAPPER
+
+
+//#define NUM_THREADS
+
 
 
 typedef struct{
@@ -41,6 +45,8 @@ typedef struct{
   rowHashed_t rows;
   rowIndexedSet_t rowInfo;
   subrowHashed_t subrows;
+  multithread_double_t *sdBySubrow;
+  int numAlternativeSd;
   const char *what;
   time_t last;
 } wrapper_storage_t;
@@ -56,11 +62,28 @@ static void printTimediff(wrapper_t w){
   })
 }
 
+
+
+typedef struct{
+  gadget_t *g;
+  wire_t maxCoeff;
+  wire_t t;
+  wrapper_t w;
+  T__THREAD_SAFE void (*iterateOverUniqueBySubrows)(gadget_t *g, wire_t maxCoeff, wire_t t, wrapper_t w, int thread);
+} iterateOverUniqueBySubrows_t;
+
+void iterateOverUniqueBySubrows_fn(void *p, int thread){
+  iterateOverUniqueBySubrows_t *info = (iterateOverUniqueBySubrows_t *)p;
+  info->iterateOverUniqueBySubrows(info->g, info->maxCoeff, info->t, info->w, thread);
+}
+
 wrapper_t wrapper_new(
   gadget_t *g,
   wire_t maxCoeff,
   wire_t t,  // >= 0 for RPC, -1 for RPS
   rowInfo_generator_t gen,
+  int numAlternativeSd,
+  T__THREAD_SAFE void (*iterateOverUniqueBySubrows)(gadget_t *g, wire_t maxCoeff, wire_t t, wrapper_t w, int thread),
   const char *what
 ){
   wrapper_t ret = { mem_calloc(sizeof(wrapper_storage_t),1,"what") };
@@ -99,6 +122,29 @@ wrapper_t wrapper_new(
 
   printf("%s: 4/6: calculate the SD for each row unique by the info/values of their subrows\n", what);
   P(ret)->what = what;
+  P(ret)->numAlternativeSd = numAlternativeSd;
+
+  pow2size_t subrowsSize = subrowHashed_numUniqueBySubrow(P(ret)->subrows);
+  P(ret)->sdBySubrow = mem_calloc(sizeof(multithread_double_t), subrowsSize * numAlternativeSd, "rpcSd's sdBySubrow");
+  #if NUM_THREADS > 1
+    for(size_t i = 0; i < subrowsSize * numAlternativeSd; i++)
+      multithread_double_init(P(ret)->sdBySubrow + i, 0.0);
+  #endif
+
+  iterateOverUniqueBySubrows_t info;
+  info.g = g;
+  info.maxCoeff = maxCoeff;
+  info.t = t;
+  info.w = ret;
+  info.iterateOverUniqueBySubrows = iterateOverUniqueBySubrows;
+
+  multithread_thr_parallel(&info, iterateOverUniqueBySubrows_fn); // re-entrant.
+
+  rowIndexedSet_delete(P(ret)->rowInfo);
+  P(ret)->rowInfo.rowIndexedSet = NULL;
+  printTimediff(ret);
+
+  printf("%s: 5/6: calculate the coefficient\n", what);
   return ret;
 }
 
@@ -117,16 +163,21 @@ void *wrapper_getRowInfo(wrapper_t w, bitArray_t sub){
   hash_t infoHash = rowIndexedSet_row2valIndex(P(w)->rowInfo, subHash);
   return rowIndexedSet_getVal(P(w)->rowInfo, infoHash);
 }
+T__THREAD_SAFE double wrapper_getSdOfRow(wrapper_t w, __attribute__((unused)) subrowHash_t subrowHash, int alt){
+  int numAlt = P(w)->numAlternativeSd;
+  ON_DBG(DBG_LVL_TOFIX, {
+    if(alt >= numAlt) FAIL("wrapper: wrapper_getSdOfRow, alt=%d numAlternativeSd=%d\n", alt, numAlt)
+  })
 
-void wrapper_freeRowInfo(wrapper_t w){
-  DBG(DBG_LVL_DETAILED, "%s, freeRowInfo\n", P(w)->what)
-  rowIndexedSet_delete(P(w)->rowInfo);
-  P(w)->rowInfo.rowIndexedSet = NULL;
+  return multithread_double_get(P(w)->sdBySubrow + (subrowHash.v * numAlt + alt), MULTITHREAD_SYNC_VAL);
 }
+T__THREAD_SAFE void wrapper_setSdOfRow(wrapper_t w, subrowHash_t subrowHash, int alt, double sd){
+  int numAlt = P(w)->numAlternativeSd;
+  ON_DBG(DBG_LVL_TOFIX, {
+    if(alt >= numAlt) FAIL("wrapper: wrapper_getSdOfRow, alt=%d numAlternativeSd=%d\n", alt, numAlt)
+  })
 
-void wrapper_startCalculatingCoefficients(wrapper_t w){
-  printTimediff(w);
-  printf("%s: 5/6: calculate the coefficient\n", P(w)->what);
+  multithread_double_set(P(w)->sdBySubrow + (subrowHash.v * numAlt + alt), sd, MULTITHREAD_SYNC_VAL);
 }
 
 subrowHash_t wrapper_getRow2Subrow(wrapper_t w, bitArray_t row){
@@ -142,5 +193,6 @@ void wrapper_delete(wrapper_t w){
 
   rowHashed_free(P(w)->rows);
   subrowHashed_delete(P(w)->subrows);
+  mem_free(P(w)->sdBySubrow);
   mem_free(P(w));
 }

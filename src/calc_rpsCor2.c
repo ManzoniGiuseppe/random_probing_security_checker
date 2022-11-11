@@ -41,6 +41,23 @@ T__THREAD_SAFE static void getInfo(void *getInfo_param, wire_t d, wire_t numIns,
     ret->sumCorr = sdMax;
 }
 
+T__THREAD_SAFE static void iterateOverUniqueBySubrows(gadget_t *g, __attribute__((unused)) wire_t maxCoeff, __attribute__((unused)) wire_t t, wrapper_t w, int thread){
+  double sdMax = 1 - ldexp(1.0, -g->numIns);
+
+  WRAPPER_ITERATE_SUBROWS(w, thread, i, row, {
+    double ret = 0;
+    ITERATE_OVER_SUB_ROWS(g->numTotOuts, row, sub, {
+      rowInfo_v_t *info = wrapper_getRowInfo(w, sub);
+      ret += info->sumCorr;
+      if(ret >= sdMax)
+        break;
+    })
+    if(ret >= sdMax)
+      ret = sdMax;
+    wrapper_setSdOfRow(w, i, 0, ret);
+  })
+}
+
 void calc_rpsCor2(gadget_t *g, wire_t maxCoeff, double *ret_coeffs){
   double sdMax = 1 - ldexp(1.0, -g->numIns);
 
@@ -51,24 +68,7 @@ void calc_rpsCor2(gadget_t *g, wire_t maxCoeff, double *ret_coeffs){
     .getInfo_param = &getInfo_param,
     .getInfo = getInfo
   };
-  wrapper_t w = wrapper_new(g, maxCoeff, -1, w_gen, "rpsCor2");
-
-  pow2size_t subrowsSize = wrapper_subrowSize(w);
-  double *sumBySubrow = mem_calloc(sizeof(double), subrowsSize, "rpsCor2");
-
-  WRAPPER_ITERATE_SUBROWS(w, i, row, {
-    ITERATE_OVER_SUB_ROWS(g->numTotOuts, row, sub, {
-      rowInfo_v_t *info = wrapper_getRowInfo(w, sub);
-      sumBySubrow[i.v] += info->sumCorr;
-      if(sumBySubrow[i.v] >= sdMax)
-        break;
-    })
-    if(sumBySubrow[i.v] >= sdMax)
-      sumBySubrow[i.v] = sdMax;
-  })
-
-  wrapper_freeRowInfo(w);
-  wrapper_startCalculatingCoefficients(w);
+  wrapper_t w = wrapper_new(g, maxCoeff, -1, w_gen, 1, iterateOverUniqueBySubrows, "rpsCor2");
 
   memset(ret_coeffs, 0, sizeof(double) * (g->numTotProbes+1));
   ITERATE_OVER_PROBES(maxCoeff, g, probes, coeffNum, {
@@ -78,7 +78,7 @@ void calc_rpsCor2(gadget_t *g, wire_t maxCoeff, double *ret_coeffs){
       probeComb_getHighestRow(probes, g, highestRow);
       subrowHash = wrapper_getRow2Subrow(w, highestRow);
     }
-    double sum = sumBySubrow[subrowHash.v];
+    double sum = wrapper_getSdOfRow(w, subrowHash, 0);
     if(sum != 0.0){
       wire_t shift_by = probeComb_getRowMulteplicity(probes, g);
       sum = ldexp(sum, shift_by); // sum <<= shift_by
@@ -89,7 +89,6 @@ void calc_rpsCor2(gadget_t *g, wire_t maxCoeff, double *ret_coeffs){
     ret_coeffs[coeffNum] += sum * probeComb_getProbesMulteplicity(probes, g);
   })
 
-  mem_free(sumBySubrow);
   wrapper_delete(w);
 
   for(wire_t i = maxCoeff+1; i <= g->numTotProbes; i++)

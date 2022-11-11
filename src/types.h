@@ -66,7 +66,8 @@ double binomial(int n, int k);
 #define FAIL(...)  { types_print_err("-FAIL- " __VA_ARGS__); types_exit(); }
 #define printf(...)  types_print_out(__VA_ARGS__)
 
-#define ON_DBG(lvl, CODE) { if(DBG_LVL >= (lvl)) { CODE } }
+#define IS_DBG(lvl)  (DBG_LVL >= (lvl))
+#define ON_DBG(lvl, CODE) { if(IS_DBG(lvl)) { CODE } }
 #define DBG(lvl, ...) ON_DBG(lvl, { types_print_err("[" DBG_FILE "] " __VA_ARGS__); })
 
 // production

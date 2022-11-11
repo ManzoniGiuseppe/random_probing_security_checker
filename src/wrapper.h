@@ -13,23 +13,34 @@
 #include "rowInfo.h"
 #include "gadget.h"
 
+
+
+//#define NUM_THREADS
+
+
+
 typedef struct { void * wrapper; } wrapper_t;
+
 
 T__THREAD_SAFE wrapper_t wrapper_new(
   gadget_t *g,
   wire_t maxCoeff,
   wire_t t,  // >= 0 for RPC, -1 for RPS
   rowInfo_generator_t gen,
+  int numAlternativeSd,
+  T__THREAD_SAFE void (*iterateOverUniqueBySubrows)(gadget_t *g, wire_t maxCoeff, wire_t t, wrapper_t w, int thread),
   T__ACQUIRES const char *what
 );
 
 T__THREAD_SAFE pow2size_t wrapper_subrowSize(wrapper_t storage);
 T__THREAD_SAFE bool wrapper_containsSubrow(wrapper_t storage, subrowHash_t subrow);
 T__THREAD_SAFE T__LEAKS bitArray_t wrapper_getSubrow2Row(wrapper_t storage, subrowHash_t subrow);
-#define WRAPPER_ITERATE_SUBROWS(wrapper, IT_SUBROW, IT_ROW, CODE) {\
+#define WRAPPER_ITERATE_SUBROWS(wrapper, thread, IT_SUBROW, IT_ROW, CODE) {\
   size_t wrapper_kvgdlgr_size = wrapper_subrowSize(wrapper);\
+  size_t wrapper_kvgdlgr_from = wrapper_kvgdlgr_size * thread / NUM_THREADS;\
+  size_t wrapper_kvgdlgr_to = wrapper_kvgdlgr_size * (thread +1) / NUM_THREADS;\
   subrowHash_t IT_SUBROW;\
-  for(IT_SUBROW.v = 0; IT_SUBROW.v < wrapper_kvgdlgr_size; IT_SUBROW.v++){\
+  for(IT_SUBROW.v = wrapper_kvgdlgr_from; IT_SUBROW.v < wrapper_kvgdlgr_to; IT_SUBROW.v++){\
     if(wrapper_containsSubrow(wrapper, IT_SUBROW)){\
       bitArray_t IT_ROW = wrapper_getSubrow2Row(wrapper, IT_SUBROW);\
       { CODE }\
@@ -38,8 +49,8 @@ T__THREAD_SAFE T__LEAKS bitArray_t wrapper_getSubrow2Row(wrapper_t storage, subr
 }
 
 T__THREAD_SAFE T__LEAKS void *wrapper_getRowInfo(wrapper_t storage, bitArray_t sub);
-void wrapper_freeRowInfo(wrapper_t storage);
-T__THREAD_SAFE void wrapper_startCalculatingCoefficients(wrapper_t storage);
+T__THREAD_SAFE double wrapper_getSdOfRow(wrapper_t storage, subrowHash_t subrowHash, int alt);
+T__THREAD_SAFE void wrapper_setSdOfRow(wrapper_t storage, subrowHash_t subrowHash, int alt, double sd);
 T__THREAD_SAFE subrowHash_t wrapper_getRow2Subrow(wrapper_t storage, bitArray_t row);
 void wrapper_delete(wrapper_t storage);
 

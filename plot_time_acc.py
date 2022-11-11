@@ -17,7 +17,7 @@ from matplotlib import pyplot as plt
 
 # option
 
-implementation_legend_location='upper center'
+implementation_legend_location='center right'
 gadget_legend_location='upper left'
 use_error=False
 graph_ylim=None

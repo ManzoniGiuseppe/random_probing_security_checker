@@ -7,52 +7,57 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
-#include <threads.h>
-#include <stdatomic.h>
 
 #include "types.h"
+#include "multithread.h"
 
 
 
-static mtx_t mutex;
-static atomic_bool isExiting;
+//#define NUM_THREADS
+
+
+
+static multithread_mtx_t mutex;
+static multithread_bool_t isExiting;
 
 
 static void __attribute__ ((constructor)) init(void){
-  atomic_init(&isExiting, 0);
-  if(mtx_init(&mutex, mtx_plain) != thrd_success) FAIL("Error in initing the print's mutex.\n");
+  multithread_bool_init(&isExiting, 0);
+  if(!multithread_mtx_init(&mutex)) FAIL("Error in initing the print's mutex.\n");
 }
 static void __attribute__ ((destructor)) deinit(void){
-  mtx_destroy(&mutex);
+  multithread_mtx_destroy(&mutex);
 }
 
 
 void types_print_err(const char* format, ...){
-  if(mtx_lock(&mutex) != thrd_success) abort();
+  if(!multithread_mtx_lock(&mutex)) abort();
 
   va_list args;
   va_start (args, format);
   vfprintf (stderr, format, args);
   va_end (args);
 
-  if(mtx_unlock(&mutex) != thrd_success) abort();
+  if(!multithread_mtx_unlock(&mutex)) abort();
 }
 
 void types_print_out(const char* format, ...){
-  if(mtx_lock(&mutex) != thrd_success) abort();
+  if(!multithread_mtx_lock(&mutex)) abort();
 
   va_list args;
   va_start (args, format);
   vfprintf (stdout, format, args);
   va_end (args);
 
-  if(mtx_unlock(&mutex) != thrd_success) abort();
+  if(!multithread_mtx_unlock(&mutex)) abort();
 }
 
-void types_exit(void){
-  if(atomic_exchange(&isExiting, 1)){
-    thrd_exit(1);
-  }
+__attribute__ ((noreturn)) void types_exit(void){
+  #if NUM_THREADS > 1
+    if(multithread_bool_exchange(&isExiting, 1, MULTITHREAD_SYNC_THREAD)){
+      multithread_thr_exit(1);
+    }
+  #endif
   exit(1);
 }
 

@@ -6,9 +6,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <threads.h>
 
 #include "mem.h"
+#include "multithread.h"
 
 
 //#define MEM_NUM_ALLOCS
@@ -18,7 +18,7 @@
 #define DBG_LVL DBG_MEM
 
 
-static mtx_t mutex;
+static multithread_mtx_t mutex;
 static uint64_t allocated;
 static uint64_t max_allocated;
 
@@ -36,7 +36,7 @@ static void checkConsistency(void){
 
 
 void* mem_calloc(size_t size, uint64_t elems, const char *what){
-  if(mtx_lock(&mutex) != thrd_success) FAIL("%s: mem_calloc: Error in locking the mutex.\n", what);
+  if(!multithread_mtx_lock(&mutex)) FAIL("%s: mem_calloc: Error in locking the mutex.\n", what);
 
   ON_DBG(DBG_LVL_TOFIX, { checkConsistency(); })
 
@@ -63,13 +63,13 @@ void* mem_calloc(size_t size, uint64_t elems, const char *what){
     if(!found) FAIL("mem_callc: no space left in the info!\n")
   })
 
-  if(mtx_unlock(&mutex) != thrd_success) FAIL("%s: mem_calloc: Error in unlocking the mutex.\n", what);
+  if(!multithread_mtx_unlock(&mutex)) FAIL("%s: mem_calloc: Error in unlocking the mutex.\n", what);
   return ret;
 }
 
 void mem_free(void* mem){
   if(mem == NULL) FAIL("mem_free: Trying to free the null array!\n")
-  if(mtx_lock(&mutex) != thrd_success) FAIL("mem_free: Error in locking the mutex.\n");
+  if(!multithread_mtx_lock(&mutex)) FAIL("mem_free: Error in locking the mutex.\n");
 
   ON_DBG(DBG_LVL_TOFIX, {
     checkConsistency();
@@ -88,14 +88,14 @@ void mem_free(void* mem){
   })
 
   free(mem);
-  if(mtx_unlock(&mutex) != thrd_success) FAIL("mem_free: Error in unlocking the mutex.\n");
+  if(!multithread_mtx_unlock(&mutex)) FAIL("mem_free: Error in unlocking the mutex.\n");
 }
 
 static void __attribute__ ((constructor)) mem_init(void){
-  if(mtx_init(&mutex, mtx_plain) != thrd_success) FAIL("Error in initing the mem's mutex.\n");
+  if(!multithread_mtx_init(&mutex)) FAIL("Error in initing the mem's mutex.\n");
 }
 static void __attribute__ ((destructor)) mem_deinit(void){
-  mtx_destroy(&mutex);
+  multithread_mtx_destroy(&mutex);
   DBG(DBG_LVL_MINIMAL, "max allocated %ld B\n", max_allocated);
   ON_DBG(DBG_LVL_TOFIX, {
     if(allocated){

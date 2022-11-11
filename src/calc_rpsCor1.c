@@ -14,7 +14,7 @@
 #include "mem.h"
 
 
-static inline int xor_col(size_t v1, size_t v2){
+static inline int xor_of_and(size_t v1, size_t v2){
   size_t v = v1 & v2;
   wire_t ones = __builtin_popcountll(v);
   return (ones % 2 == 0) ? 1 : -1;
@@ -26,13 +26,44 @@ T__THREAD_SAFE static void getInfo(__attribute__((unused)) void *getInfo_param, 
   ITERATE_X_UND(numIns, {
     for(size_t i = 1; i < (1ull << numIns); i++){ // 0 excluded
       double v = transform[calcUtils_intExpandByD(d, i)];
-      ret[x] += xor_col(i, x) == 1 ? v : -v;
+      ret[x] += xor_of_and(i, x) == 1 ? v : -v;
     }
   })
 }
 
-static inline int xor_row(wire_t numTotOuts, bitArray_t v1, bitArray_t v2){
-  return (bitArray_count1And(numTotOuts, v1, v2) % 2 == 0) ? 1 : -1;
+T__THREAD_SAFE static void iterateOverUniqueBySubrows(gadget_t *g, wire_t maxCoeff, __attribute__((unused)) wire_t t, wrapper_t w, int thread){
+  double sdMax = 1 - ldexp(1.0, -g->numIns);
+  double **infos = mem_calloc(sizeof(double*), 1ll << maxCoeff, "rpsCor1's subrows infos.");
+
+  WRAPPER_ITERATE_SUBROWS(w, thread, h, row, {
+    wire_t rowCount1 = bitArray_count1(g->numTotOuts, row);
+    {
+      size_t i = 0;
+      ITERATE_OVER_SUB_ROWS(g->numTotOuts, row, omega, {
+        infos[i++] = wrapper_getRowInfo(w, omega);
+      })
+    }
+
+    ITERATE_X_UND(g->numIns, {
+      double outer = 0.0;
+      for(size_t j = 0; j < 1ull << rowCount1; j++){ // due to how it's used, it has the same effect of iterating over subrows, just faster.
+        double inner = 0.0;
+        for(size_t i = 0; i < 1ull << rowCount1; i++){
+          inner += xor_of_and(i, j) == 1 ? infos[i][x] : -infos[i][x]; // it's the same as doing it on the subrows, but with 1s in different position and faster
+        }
+        outer += ABS(inner);
+      }
+      double ret = ldexp(outer,
+        - g->numTotIns // fixed_cell_t is in fixed point notation. That is handled here.
+        - 1 // a /2, see the formula
+        - bitArray_count1(g->numTotOuts, row) // 2 ** - row_count1(row)  =  multeplicity * 2** - numprobes
+      );
+      wrapper_setSdOfRow(w, h, x, MIN(sdMax, ret));
+    })
+
+  })
+
+  mem_free(infos);
 }
 
 void calc_rpsCor1(gadget_t *g, wire_t maxCoeff, double *ret_coeffs){
@@ -45,45 +76,7 @@ void calc_rpsCor1(gadget_t *g, wire_t maxCoeff, double *ret_coeffs){
     .getInfo_param = NULL,
     .getInfo = getInfo
   };
-  wrapper_t w = wrapper_new(g, maxCoeff, -1, w_gen, "rpsCor1");
-
-  pow2size_t subrowsSize = wrapper_subrowSize(w);
-  double *sdBySubrow = mem_calloc(sizeof(double), subrowsSize * numCols, "rpsCor1");
-
-  WRAPPER_ITERATE_SUBROWS(w, h, row, {
-    wire_t rowCount1 = bitArray_count1(g->numTotOuts, row);
-    double **infos = mem_calloc(sizeof(double*), 1ll << rowCount1, "rpsCor1's subrows infos.");
-    {
-      size_t i = 0;
-      ITERATE_OVER_SUB_ROWS(g->numTotOuts, row, omega, {
-        infos[i++] = wrapper_getRowInfo(w, omega);
-      })
-    }
-
-    ITERATE_X_UND(g->numIns, {
-      double outer = 0.0;
-      ITERATE_OVER_SUB_ROWS(g->numTotOuts, row, o, {
-        double inner = 0.0;
-        size_t i = 0;
-        ITERATE_OVER_SUB_ROWS(g->numTotOuts, row, omega, {
-          inner += xor_row(g->numTotOuts, o, omega) == 1 ? infos[i][x] : -infos[i][x];
-          i++;
-        })
-        outer += ABS(inner);
-      })
-      double ret = ldexp(outer,
-        - g->numTotIns // fixed_cell_t is in fixed point notation. That is handled here.
-        - 1 // a /2, see the formula
-        - bitArray_count1(g->numTotOuts, row) // 2 ** - row_count1(row)  =  multeplicity * 2** - numprobes
-      );
-      sdBySubrow[h.v * numCols + x] = MIN(sdMax, ret);
-    })
-
-    mem_free(infos);
-  })
-
-  wrapper_freeRowInfo(w);
-  wrapper_startCalculatingCoefficients(w);
+  wrapper_t w = wrapper_new(g, maxCoeff, -1, w_gen, numCols, iterateOverUniqueBySubrows, "rpsCor1");
 
   memset(ret_coeffs, 0, sizeof(double) * (g->numTotProbes+1));
   for(size_t x = 0; x < 1ull<<g->numIns; x++){
@@ -94,14 +87,13 @@ void calc_rpsCor1(gadget_t *g, wire_t maxCoeff, double *ret_coeffs){
     row_first(g->numTotOuts, probe);
     do{
       subrowHash_t subrowHash = wrapper_getRow2Subrow(w, probe);
-      double sd = sdBySubrow[subrowHash.v * numCols + x];
+      double sd = wrapper_getSdOfRow(w, subrowHash, x);
       calcUtils_addTotProbeMulteplicity(coeff_sum, sd, maxCoeff, g, probe);
     }while(row_tryNext_probeLeqMaxCoeff(probe, g->d * g->numOuts, g->numTotOuts, maxCoeff));
 
     calcUtils_coeffMaxIntoFirst(g->numTotProbes, ret_coeffs, coeff_sum);
   }
 
-  mem_free(sdBySubrow);
   wrapper_delete(w);
 
   for(wire_t i = maxCoeff+1; i <= g->numTotProbes; i++)

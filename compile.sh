@@ -11,17 +11,29 @@ srcDir='src'
 out='rpsc'
 
 
-if [ "$1" = "--dbg" ] ; then
-  isDbg=1
-else
-  isDbg=0
+
+numThreads=1
+isDbg=0
+isCheck=0
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -t) numThreads="$2"; shift 2;;
+    --dbg) isDbg=1; shift 1;;
+    --check) isCheck=1; shift 1;;
+
+    -*) echo "Unknown option: $1" >&2; exit 1;;
+    *) echo "No option specified: $1" >&2; shift 1;;
+  esac
+done
+
+if [ "$numThreads" -lt 1 ] ; then
+  echo "Invalid number of threads ${numThreads}"
+  exit 1
 fi
 
-if [ "$1" = "--check" ] ; then
-  isCheck=1
-else
-  isCheck=0
-fi
+
+
 
 
 mkdir ${oDir} 2>/dev/null
@@ -52,6 +64,7 @@ echo ";"  >> ${oDir}/help.c
 # MAX_NUM_MASKED_INS must be <= 64
 
 preprocFlags=""
+preprocFlags="${preprocFlags} -DNUM_THREADS=$numThreads"
 preprocFlags="${preprocFlags} -DMAX_NUM_TOT_INS=126"
 preprocFlags="${preprocFlags} -DMEM_NUM_ALLOCS=10000"
 preprocFlags="${preprocFlags} -DHASHMAP_INITIAL_BITS=7"
@@ -69,8 +82,8 @@ if [ "$isDbg" -eq 1 ] ; then
   dbgLvl="DBG_LVL_DETAILED"
   preprocFlags="${preprocFlags} -DDBG_MEM=${dbgLvl}"
   dbgLvl="DBG_LVL_MINIMAL"
-  preprocFlags="${preprocFlags} -DDBG_HASHMAP=${dbgLvl}"
   dbgLvl="DBG_LVL_TOFIX"
+  preprocFlags="${preprocFlags} -DDBG_HASHMAP=${dbgLvl}"
   preprocFlags="${preprocFlags} -DDBG_WRAPPER=${dbgLvl}"
   preprocFlags="${preprocFlags} -DDBG_ROWHASHED=${dbgLvl}"
   preprocFlags="${preprocFlags} -DDBG_HASH=${dbgLvl}"
@@ -81,7 +94,7 @@ if [ "$isDbg" -eq 1 ] ; then
   preprocFlags="${preprocFlags} -DDBG_SUBROWHASHED=${dbgLvl}"
   preprocFlags="${preprocFlags} -DDBG_ROWINDEXEDSET=${dbgLvl}"
   preprocFlags="${preprocFlags} -DDBG_TRANSFORMGENERATOR=${dbgLvl}"
-  dbgLvl="DBG_LVL_NONE"
+  # don't use DBG_LVL_NONE in combination to the others, some dbg information are only calculated if some DBG is present, and may be used by the DBG of other modules.
 elif [ "$isCheck" -eq 1 ] ; then
   preprocFlags="${preprocFlags} -DDBG_HASHMAP=DBG_LVL_TOFIX"
   preprocFlags="${preprocFlags} -DDBG_MEM=DBG_LVL_TOFIX"
@@ -126,7 +139,9 @@ warningFlag="${warningFlag} -Werror"
 standardFlag="--std=gnu2x"
 
 libFlag=""
-libFlag="${libFlag} -lpthread"
+if [ $numThreads -gt 1 ] ; then
+  libFlag="${libFlag} -lpthread"
+fi
 
 for name in $(cd ${srcDir} ; ls *.c | sed 's/.c$//') ; do
   gcc -c $optimizeFlag $warningFlag $standardFlag $preprocFlags "${srcDir}/${name}.c" -o "${oDir}/src_${name}.o" || exit 1
