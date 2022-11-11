@@ -4,3 +4,4 @@
 /.plot_time_acc.out.png
 /test/.transform.expected.*
 /rpsc
+.*.swp
