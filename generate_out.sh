@@ -6,24 +6,25 @@
 #You should have received a copy of the GNU General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 mainDir=.rpsc.out
-maxAllowedCoeff=5
-tiemout=120m
+timeout=4h
 
 # 1: in file name
 # 2: in options
 # 3: out file name
 # 4: maxCoeff
+# 5: maxAllowedCoeff
 function findCoeffAndSaveResults(){
-  file="$1"
-  op="$2"
-  out="$3"
-  maxCoeff="$4"
+  local file="$1"
+  local op="$2"
+  local out="$3"
+  local maxCoeff="$4"
+  local maxAllowedCoeff="$5"
 
   mkdir $out 2>/dev/null
 
   # limit
   if [ "$maxCoeff" -ge "$maxAllowedCoeff" ] ; then
-    maxCoeff=$maxAllowedCoeff
+    local maxCoeff=$maxAllowedCoeff
   fi
 
   for c in $(seq 0 $maxCoeff) ; do
@@ -32,8 +33,8 @@ function findCoeffAndSaveResults(){
     fi
     if [ ! -e $out/$c.success ] ; then
       echo "calculating ./rpsc --sage $file $op -c $c > $out"
-      { timeout $timeout bash -c "time ./rpsc --sage $file $op -c $c" ; } >$mainDir/_tmp_out 2>&1
-      status=$?
+      { timeout "$timeout" bash -c "time ./rpsc --sage $file $op -c $c" ; } >$mainDir/_tmp_out 2>&1
+      local status=$?
 
       if [ $status -eq 0 ] ; then
         cat $mainDir/_tmp_out | grep -a '^rp[sc][a-zA-Z0-9]*-ret: ' | sed 's/^[^:]*: *//' > $out/$c.success
@@ -52,23 +53,28 @@ function findCoeffAndSaveResults(){
 
 # 1: name
 # 2: pseudo-file
+# 3: maxAllowedCoeff_rps
+# 4: maxAllowedCoeff_rpc
 function execGadget(){
-  name="$1"
-  file="$2"
+  local name="$1"
+  local file="$2"
+  local maxAllowedCoeff_rps="$3"
+  local maxAllowedCoeff_rpc="$4"
 
-  echo $name
   mkdir $mainDir/$name 2>/dev/null
 
-  maxCoeff=$(./rpsc --sage $file --printGadget | grep -a "^NUM_TOT_PROBES=" | sed "s/^NUM_TOT_PROBES=//")
-  d=$(grep -a "^#SHARES " $file | sed "s/^#SHARES //")
+  local maxCoeff=$(./rpsc --sage $file --printGadget | grep -a "^NUM_TOT_PROBES=" | sed "s/^NUM_TOT_PROBES=//")
+  local d=$(grep -a "^#SHARES " $file | sed "s/^#SHARES //")
+
+  echo $name - ${maxAllowedCoeff_rps} - ${maxAllowedCoeff_rpc} = ${maxCoeff} - ${d}
 
   for op in $(echo -e "rpsCor3\nrpsCor2\nrpsCor1") ; do
-    findCoeffAndSaveResults "$file" "--$op" "$mainDir/$name/$op" "$maxCoeff"
+    findCoeffAndSaveResults "$file" "--$op" "$mainDir/$name/$op" "$maxCoeff" "${maxAllowedCoeff_rps}"
   done
 
-  t=$[d / 2] # ignore the others.
+  local t=$[d / 2] # ignore the others.
   for op in $(echo -e "rpcCor2\nrpcCor1") ; do
-    findCoeffAndSaveResults "$file" "--${op} -t $t" "$mainDir/$name/${op}__$t" "$maxCoeff"
+    findCoeffAndSaveResults "$file" "--${op} -t $t" "$mainDir/$name/${op}__$t" "$maxCoeff" "${maxAllowedCoeff_rpc}"
   done
 }
 
@@ -86,15 +92,37 @@ fi
 echo generating test results and timings...
 mkdir $mainDir 2>/dev/null
 
-for gadget in $(cd gadgets ; ls *.sage) ; do
-  execGadget $gadget gadgets/$gadget
+gadgets=""
+gadgets="${gadgets} vrapsPaper_mul.sage:6:5"
+gadgets="${gadgets} vrapsPaper_add_v3.sage:9:5"
+gadgets="${gadgets} vrapsPaper_copy.sage:13:1"
+gadgets="${gadgets} otpoePaper_small_add.sage:9:5"
+gadgets="${gadgets} otpoePaper_small_mul.sage:1:5"
+gadgets="${gadgets} otpoePaper_small_refresh.sage:1:6"
+
+for gadgetCoeff in $(echo "$gadgets" | sed "s/^ *//;s/ /\n/") ; do
+  gadget=$(echo "$gadgetCoeff" | sed "s/:.*:.*//")
+  coeff=$(echo "$gadgetCoeff" | sed "s/^[^:]*://")
+  execGadget $gadget gadgets/$gadget $(echo "$coeff" | sed "s/:/ /g")
 done
 
-for generator in $(cd gadgets ; ls *.py) ; do
-  for d in $(echo -e '3\n5\n7') ; do
-    gadgets/$generator $d > $mainDir/_tmp_input
-    execGadget "${generator}__$d" "$mainDir/_tmp_input"
-  done
+generators=""
+generators="${generators} isw_mul.py__3:8:1"
+generators="${generators} otpoePaper_mul.py__3:5:1"
+generators="${generators} otpoePaper_add.py__3:9:1"
+generators="${generators} otpoePaper_copy.py__3:1:6"
+generators="${generators} isw_refresh.py__3:1:9"
+generators="${generators} otpoePaper_add.py__3:1:5"
+generators="${generators} otpoePaper_copy.py__3:1:5"
+
+for generatorCoeff in $(echo "$generators" | sed "s/^ *//;s/ /\n/") ; do
+  genD=$(echo "$generatorCoeff" | sed "s/:.*:.*//")
+  coeff=$(echo "$generatorCoeff" | sed "s/^[^:]*://")
+  generator=$(echo "$genD" | sed "s/__.*//")
+  d=$(echo "$genD" | sed "s/.*__//")
+
+  gadgets/$generator $d > $mainDir/_tmp_input
+  execGadget "${generator}__$d" "$mainDir/_tmp_input" $(echo "$coeff" | sed "s/:/ /g")
 done
 
 

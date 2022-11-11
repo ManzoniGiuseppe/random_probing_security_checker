@@ -10,8 +10,8 @@ dir=$(mktemp -d) || exit 1
 
 
 test(){
-  logBits=$1
-  bits=$2
+  local logBits=$1
+  local bits=$2
 
   echo "Array of ${bits} bits implemented with values of $[1<<${logBits}] bits"
 

@@ -9,18 +9,18 @@ trap 'rm -rf "$dir"' EXIT
 dir=$(mktemp -d) || exit 1
 
 genExpected(){
-  gadget=$1
+  local gadget=$1
 
-  d=$(cat $gadget | grep "^#SHARES " | sed "s/^#SHARES //")
-  is=$(cat $gadget | grep "^#IN " | sed "s/^#IN //")
-  os=$(cat $gadget | grep "^#OUT " | sed "s/^#OUT //")
-  rs=$(cat $gadget | grep "^#RANDOMS " | sed "s/^#RANDOMS //")
+  local d=$(cat $gadget | grep "^#SHARES " | sed "s/^#SHARES //")
+  local is=$(cat $gadget | grep "^#IN " | sed "s/^#IN //")
+  local os=$(cat $gadget | grep "^#OUT " | sed "s/^#OUT //")
+  local rs=$(cat $gadget | grep "^#RANDOMS " | sed "s/^#RANDOMS //")
 
-  ni=0
+  local ni=0
   for i in $is ; do ni=$[ni+1] ; done
-  no=0
+  local no=0
   for o in $os ; do no=$[no+1] ; done
-  nr=0
+  local nr=0
   for r in $rs ; do nr=$[nr+1] ; done
 
 
@@ -31,16 +31,16 @@ from sympy import fwht
 
 def gadget(inArr):
 $(
-  c=0;
+  local c=0;
   for i in $is ; do
     for k in $(seq 0 $[d-1]) ; do
       echo "  ${i}${k} = inArr[$c]"
-      c=$[c+1]
+      local c=$[c+1]
     done
   done
   for r in $rs ; do
     echo "  ${r} = inArr[$c]"
-    c=$[c+1]
+    local c=$[c+1]
   done
 )
 
@@ -95,7 +95,7 @@ EOF
 }
 
 genActual(){
-  gadget=$1
+  local gadget=$1
 
 cat > $dir/main.c << EOF
 #include "parserSage.h"
@@ -201,11 +201,11 @@ sources="${sources} ../src/hashCache.c"
 
 
 test(){
-  gadget=$1
-  file=$2
+  local gadget=$1
+  local file=$2
 
-  transformExp=".transform.expected.${gadget}"
-  transformAct="${dir}/transform.actual.${gadget}"
+  local transformExp=".transform.expected.${gadget}"
+  local transformAct="${dir}/transform.actual.${gadget}"
 
   echo checking $gadget
   cat $file | sed "s/^/  /"
@@ -227,9 +227,6 @@ test(){
   fi
   echo
 }
-
-
-  file="../gadgets/${gadget}.sage"
 
 test vrapsPaper_copy ../gadgets/vrapsPaper_copy.sage
 test vrapsPaper_add_v1 ../gadgets/vrapsPaper_add_v1.sage

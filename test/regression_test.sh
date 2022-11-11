@@ -20,11 +20,11 @@ tmpIn=$(mktemp) || exit 1
 # 2: in options
 # 3: out file name
 function findCoeffAndCheckResults(){
-  file="$1"
-  op="$2"
-  out="$3"
+  local file="$1"
+  local op="$2"
+  local out="$3"
 
-  c=$(cat .regression.test | grep -a "^${out}/[0-9]*\.success" | sed 's|^[^/]*/[^/]*/\([0-9]*\)\.success: .*$|\1|' | sort -n | tail -n 1)
+  local c=$(cat .regression.test | grep -a "^${out}/[0-9]*\.success" | sed 's|^[^/]*/[^/]*/\([0-9]*\)\.success: .*$|\1|' | sort -n | tail -n 1)
 
   if [ -z "$c" ] ; then
     echo missing $out
@@ -32,12 +32,12 @@ function findCoeffAndCheckResults(){
   fi
 
   if [ "$c" -ge "$maxC" ] ; then
-    c="$maxC"
+    local c="$maxC"
   fi
 
   echo "calculating ./rpsc --sage $file $op -c $c > _tmp_out"
   { timeout 10m bash -c "time ../rpsc --sage $file $op -c $c" ; } >${tmpOut} 2>&1
-  status=$?
+  local status=$?
 
   if [ $status -ne 0 ] ; then
     echo "FAIL: non 0 exit code!" 2>&1
@@ -58,8 +58,8 @@ function findCoeffAndCheckResults(){
 # 1: name
 # 2: pseudo-file
 function execGadget(){
-  name="$1"
-  file="$2"
+  local name="$1"
+  local file="$2"
 
   if [ $(cat .regression.test | grep -a "^${name}/" | wc -l) -eq 0 ] ; then
     echo missing $name
@@ -68,7 +68,7 @@ function execGadget(){
 
   echo $name
 
-  d=$(grep -a "^#SHARES " $file | sed "s/^#SHARES //")
+  local d=$(grep -a "^#SHARES " $file | sed "s/^#SHARES //")
 
   for op in $(echo -e "rpsCor3\nrpsCor2\nrpsCor1") ; do
     if echo $allowedOp | grep -a -q ":$op:" ; then
