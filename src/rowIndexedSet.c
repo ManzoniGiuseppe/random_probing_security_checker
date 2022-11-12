@@ -8,6 +8,7 @@
 #include "mem.h"
 #include "bitArray.h"
 #include "hashSet.h"
+#include "multithread.h"
 
 
 #define DBG_FILE "rowIndexedSet"
@@ -16,7 +17,7 @@
 
 
 typedef struct{
-  hash_compact_t *hashed2valIndex;
+  multithread_lu32_t *hashed2valIndex;
   hashSet_t vals;
   pow2size_t numRowHashed;
   char *ofWhat;
@@ -28,7 +29,7 @@ T__THREAD_SAFE rowIndexedSet_t rowIndexedSet_new(pow2size_t numRowHashed, size_t
   DBG(DBG_LVL_MINIMAL, "%s: new, with numRowHashed=0x%lX, size_v=%ld\n", ofWhat, (long) numRowHashed, (long) size_v)
   rowIndexedSet_t ret = { mem_calloc(sizeof(rowIndexedSet_storage_t), 1, ofWhat) };
 
-  P(ret)->hashed2valIndex = mem_calloc(sizeof(hash_compact_t), numRowHashed, ofWhat);
+  P(ret)->hashed2valIndex = mem_calloc(sizeof(multithread_lu32_t), numRowHashed, ofWhat);
   P(ret)->numRowHashed = numRowHashed;
   P(ret)->ofWhat = ofWhat;
   P(ret)->vals = hashSet_new(size_v, ofWhat);
@@ -45,7 +46,7 @@ void rowIndexedSet_delete(rowIndexedSet_t s){
 // key may or may not be present. return if afterward they are inserted.
 void rowIndexedSet_add(rowIndexedSet_t s, rowHash_t row, void *val){
   DBG(DBG_LVL_DETAILED, "%s: add at row=0x%lX\n", P(s)->ofWhat, (long) row.v)
-  P(s)->hashed2valIndex[row.v] = hash_toCompact(hashSet_add(P(s)->vals, val));
+  multithread_lu32_set(P(s)->hashed2valIndex + row.v, hashSet_add(P(s)->vals, val).v, MULTITHREAD_SYNC_VAL);
 }
 
 T__THREAD_SAFE pow2size_t rowIndexedSet_currSize(rowIndexedSet_t s){
@@ -57,7 +58,7 @@ T__THREAD_SAFE pow2size_t rowIndexedSet_currSize(rowIndexedSet_t s){
 }
 
 T__THREAD_SAFE bool rowIndexedSet_containsRow(rowIndexedSet_t s, rowHash_t row){
-  bool ret = P(s)->hashed2valIndex[row.v].v != 0;
+  bool ret = multithread_lu32_get(P(s)->hashed2valIndex + row.v, MULTITHREAD_SYNC_VAL) != 0;
   DBG(DBG_LVL_DETAILED, "%s: containsRow, row=0x%lX is%s contained\n", P(s)->ofWhat, (long) row.v, ret?"":" not")
   return ret;
 }
@@ -73,7 +74,7 @@ T__THREAD_SAFE hash_t rowIndexedSet_row2valIndex(rowIndexedSet_t s, rowHash_t ro
   ON_DBG(DBG_LVL_TOFIX, {
     if(!rowIndexedSet_containsRow(s, row)) FAIL("rowIndexedSet_row2valIndex: %s: Trying to get the missing row 0x%llX\n", P(s)->ofWhat, (long long) row.v)
   })
-  hash_t ret = hash_fromCompact(P(s)->hashed2valIndex[row.v]);
+  hash_t ret = { multithread_lu32_get(P(s)->hashed2valIndex + row.v, MULTITHREAD_SYNC_VAL) };
   DBG(DBG_LVL_DETAILED, "%s: row2valIndex, row=0x%lX, valIndex=%ld\n", P(s)->ofWhat, (long) row.v, (long) ret.v)
   return ret;
 }

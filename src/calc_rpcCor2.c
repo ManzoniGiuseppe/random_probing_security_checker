@@ -26,10 +26,10 @@ T__THREAD_SAFE static void getInfo(__attribute__((unused)) void *getInfo_param, 
       ret->arrayHasCoordWithCorr |= i;
 }
 
-T__THREAD_SAFE static void iterateOverUniqueBySubrows(gadget_t *g, __attribute__((unused)) wire_t maxCoeff, wire_t t, wrapper_t w, int thread){
+T__THREAD_SAFE static void iterateOverUniqueBySubrows(gadget_t *g, __attribute__((unused)) wire_t maxCoeff, wire_t t, wrapper_t w){
   double sdMax = 1 - ldexp(1.0, -g->numIns * (g->d - t));
 
-  WRAPPER_ITERATE_SUBROWS(w, thread, i, row, {
+  WRAPPER_ITERATE_SUBROWS_TH(w, i, row, {
     uint_fast64_t arrayHasCoordWithCorr = 0;
     ITERATE_OVER_SUB_ROWS(g->numTotOuts, row, sub, {
       rowInfo_v_t *info = wrapper_getRowInfo(w, sub);
@@ -47,7 +47,7 @@ void calc_rpcCor2(gadget_t *g, wire_t maxCoeff, wire_t t, double *ret_coeffs){
   if(g->d * g->numIns > 64) FAIL("rpcVraps, unsupported g->d * g->numIns > 64")
 
   rowInfo_generator_t w_gen = (rowInfo_generator_t){
-    .hashTheTransforms = 0,
+    .hashTheTransforms_usingPositions = NULL,
     .infoSize = sizeof(rowInfo_v_t),
     .getInfo_param = NULL,
     .getInfo = getInfo

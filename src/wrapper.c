@@ -38,12 +38,12 @@ static bool tryNext(void *info, bitArray_t next){
 }
 
 static hash_t row2info(void* infoR2I, rowHash_t row){
-  return rowIndexedSet_row2valIndex((rowIndexedSet_t){ infoR2I }, row);
+  return rowInfo_row2hashInfo((rowInfo_t){ infoR2I }, row);
 }
 
 typedef struct{
   rowHashed_t rows;
-  rowIndexedSet_t rowInfo;
+  rowInfo_t rowInfo;
   subrowHashed_t subrows;
   multithread_double_t *sdBySubrow;
   int numAlternativeSd;
@@ -69,12 +69,12 @@ typedef struct{
   wire_t maxCoeff;
   wire_t t;
   wrapper_t w;
-  T__THREAD_SAFE void (*iterateOverUniqueBySubrows)(gadget_t *g, wire_t maxCoeff, wire_t t, wrapper_t w, int thread);
+  T__THREAD_SAFE void (*iterateOverUniqueBySubrows)(gadget_t *g, wire_t maxCoeff, wire_t t, wrapper_t w);
 } iterateOverUniqueBySubrows_t;
 
-void iterateOverUniqueBySubrows_fn(void *p, int thread){
+void iterateOverUniqueBySubrows_fn(void *p){
   iterateOverUniqueBySubrows_t *info = (iterateOverUniqueBySubrows_t *)p;
-  info->iterateOverUniqueBySubrows(info->g, info->maxCoeff, info->t, info->w, thread);
+  info->iterateOverUniqueBySubrows(info->g, info->maxCoeff, info->t, info->w);
 }
 
 wrapper_t wrapper_new(
@@ -83,7 +83,7 @@ wrapper_t wrapper_new(
   wire_t t,  // >= 0 for RPC, -1 for RPS
   rowInfo_generator_t gen,
   int numAlternativeSd,
-  T__THREAD_SAFE void (*iterateOverUniqueBySubrows)(gadget_t *g, wire_t maxCoeff, wire_t t, wrapper_t w, int thread),
+  T__THREAD_SAFE void (*iterateOverUniqueBySubrows)(gadget_t *g, wire_t maxCoeff, wire_t t, wrapper_t w),
   const char *what
 ){
   wrapper_t ret = { mem_calloc(sizeof(wrapper_storage_t),1,"what") };
@@ -117,7 +117,7 @@ wrapper_t wrapper_new(
   printTimediff(ret);
 
   printf("%s: 3/6: calculate which rows are unique by the info/values of their subrows\n", what);
-  P(ret)->subrows = subrowHashed_new(P(ret)->rows, itRows, P(ret)->rowInfo.rowIndexedSet, row2info);
+  P(ret)->subrows = subrowHashed_new(P(ret)->rows, itRows, P(ret)->rowInfo.rowInfo, row2info);
   printTimediff(ret);
 
   printf("%s: 4/6: calculate the SD for each row unique by the info/values of their subrows\n", what);
@@ -140,8 +140,8 @@ wrapper_t wrapper_new(
 
   multithread_thr_parallel(&info, iterateOverUniqueBySubrows_fn); // re-entrant.
 
-  rowIndexedSet_delete(P(ret)->rowInfo);
-  P(ret)->rowInfo.rowIndexedSet = NULL;
+  rowInfo_delete(P(ret)->rowInfo);
+  P(ret)->rowInfo.rowInfo = NULL;
   printTimediff(ret);
 
   printf("%s: 5/6: calculate the coefficient\n", what);
@@ -160,8 +160,7 @@ bitArray_t wrapper_getSubrow2Row(wrapper_t w, subrowHash_t subrow){
 void *wrapper_getRowInfo(wrapper_t w, bitArray_t sub){
   DBG(DBG_LVL_DETAILED, "%s, getRowInfo\n", P(w)->what)
   rowHash_t subHash = rowHashed_hash(P(w)->rows, sub);
-  hash_t infoHash = rowIndexedSet_row2valIndex(P(w)->rowInfo, subHash);
-  return rowIndexedSet_getVal(P(w)->rowInfo, infoHash);
+  return rowInfo_row2info(P(w)->rowInfo, subHash);
 }
 T__THREAD_SAFE double wrapper_getSdOfRow(wrapper_t w, __attribute__((unused)) subrowHash_t subrowHash, int alt){
   int numAlt = P(w)->numAlternativeSd;

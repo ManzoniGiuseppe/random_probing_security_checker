@@ -48,18 +48,23 @@
 // thread
 
 #if NUM_THREADS == 1
-  inline void multithread_thr_parallel(void *info, void (*fn)(void *info, int th)){ fn(info, 0); }
+  inline void multithread_thr_parallel(void *info, void (*fn)(void *info)){ fn(info); }
+  inline int multithread_thr_getId(void){ return -1; }
 #else
+  int multithread_thr_getId(void);
+
   __attribute__ ((noreturn)) T__THREAD_SAFE inline void multithread_thr_exit(int ret){ thrd_exit(ret); }
   typedef struct {
-    void (*fn)(void *info, int th);
+    void (*fn)(void *info);
     int th;
     void *info;
   } multithread_thr_parallel_t;
 
   int multithread_thr_parallel_i(void *p);
 
-  inline void multithread_thr_parallel(void *info, void (*fn)(void *info, int th)){
+  inline void multithread_thr_parallel(void *info, void (*fn)(void *info)){
+    if(multithread_thr_getId() != -1) FAIL("multithread_thr_parallel can only be invoked by the main thread.\n")
+
     thrd_t threads[NUM_THREADS];
     multithread_thr_parallel_t init[NUM_THREADS];
     for(int i = 0; i < NUM_THREADS; i++){
@@ -142,6 +147,7 @@
 
 DEF_COMMON(multithread_bool_t, bool, bool)
 DEF_COMMON(multithread_fu64_t, uint_fast64_t, fu64)
+DEF_COMMON(multithread_lu32_t, uint_least32_t, lu32)
 DEF_COMMON(multithread_double_t, double, double)
 
 DEF_ARITH(multithread_fu64_t, uint_fast64_t, fu64)

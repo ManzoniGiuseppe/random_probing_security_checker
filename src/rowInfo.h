@@ -11,14 +11,19 @@
 #include "rowHashed.h"
 #include "rowIndexedSet.h"
 
+typedef struct { void * rowInfo; } rowInfo_t;
+
 typedef struct {
-  bool hashTheTransforms;
+  bitArray_t hashTheTransforms_usingPositions; // NULL if don't hash the transform and get the info directly.
   size_t infoSize;
   void *getInfo_param;
   T__THREAD_SAFE void (*getInfo)(void *getInfo_param, wire_t d, wire_t numIns, fixed_cell_t *transform, void *ret_info); // transform[d*numIns], ret is initialized to all 0s.
 } rowInfo_generator_t;
 
-T__THREAD_SAFE rowIndexedSet_t rowInfo_build(transformGenerator_t tg, rowHashed_t rows, rowInfo_generator_t gen, wire_t d, wire_t numIns, wire_t numRnds);
+rowInfo_t rowInfo_build(transformGenerator_t tg, rowHashed_t rows, rowInfo_generator_t gen, wire_t d, wire_t numIns, wire_t numRnds);
+void rowInfo_delete(rowInfo_t info);
 
+T__THREAD_SAFE T__LEAKS void * rowInfo_row2info(rowInfo_t info, rowHash_t row);
+T__THREAD_SAFE hash_t rowInfo_row2hashInfo(rowInfo_t s, rowHash_t row);
 
 #endif // _ROW_INFO_H_

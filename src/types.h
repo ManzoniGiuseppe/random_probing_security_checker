@@ -16,6 +16,8 @@
 
 // if it's safe to call a function in different thread, even at the same time with the same parameters (excluding return parameters) as any other functions with this same tag.
 #define T__THREAD_SAFE
+// if it's safe to call this exact function in different thread, even at the same time with the same parameters (excluding return parameters).
+#define T__THREAD_SEMI_SAFE
 // if references to a parameter are kept even after its function ended.
 #define T__ACQUIRES
 // if pointer to internal variables are passed outside, either with a return or set to a parameter
@@ -83,5 +85,27 @@ double binomial(int n, int k);
 
 
 #define inline __attribute__((always_inline)) inline
+
+
+#define TYPES_ITERATE_TH(size, BASE, INDEX, CODE) {\
+  size_t TYPES__size = (size);\
+  int TYPES__thread = multithread_thr_getId();\
+  size_t BASE, TYPES__to;\
+  if(TYPES__thread >= 0){\
+    size_t TYPES__baseSize = TYPES__size/NUM_THREADS;\
+    if(TYPES__thread == NUM_THREADS-1){\
+      BASE = TYPES__baseSize * TYPES__thread;\
+      TYPES__to = TYPES__size;\
+    }\
+    BASE = TYPES__baseSize * TYPES__thread;\
+    TYPES__to = TYPES__baseSize * (TYPES__thread +1);\
+  }else{\
+    BASE = 0;\
+    TYPES__to = TYPES__size;\
+  }\
+  for(INDEX = BASE; INDEX < TYPES__to; INDEX++){\
+    { CODE }\
+  }\
+}
 
 #endif // _TYPES_H_

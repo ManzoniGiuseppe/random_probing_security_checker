@@ -12,6 +12,7 @@
 #include "subrowHashed.h"
 #include "rowInfo.h"
 #include "gadget.h"
+#include "multithread.h"
 
 
 
@@ -22,30 +23,27 @@
 typedef struct { void * wrapper; } wrapper_t;
 
 
-T__THREAD_SAFE wrapper_t wrapper_new(
+wrapper_t wrapper_new(
   gadget_t *g,
   wire_t maxCoeff,
   wire_t t,  // >= 0 for RPC, -1 for RPS
   rowInfo_generator_t gen,
   int numAlternativeSd,
-  T__THREAD_SAFE void (*iterateOverUniqueBySubrows)(gadget_t *g, wire_t maxCoeff, wire_t t, wrapper_t w, int thread),
+  T__THREAD_SAFE void (*iterateOverUniqueBySubrows)(gadget_t *g, wire_t maxCoeff, wire_t t, wrapper_t w),
   T__ACQUIRES const char *what
 );
 
 T__THREAD_SAFE pow2size_t wrapper_subrowSize(wrapper_t storage);
 T__THREAD_SAFE bool wrapper_containsSubrow(wrapper_t storage, subrowHash_t subrow);
 T__THREAD_SAFE T__LEAKS bitArray_t wrapper_getSubrow2Row(wrapper_t storage, subrowHash_t subrow);
-#define WRAPPER_ITERATE_SUBROWS(wrapper, thread, IT_SUBROW, IT_ROW, CODE) {\
-  size_t wrapper_kvgdlgr_size = wrapper_subrowSize(wrapper);\
-  size_t wrapper_kvgdlgr_from = wrapper_kvgdlgr_size * thread / NUM_THREADS;\
-  size_t wrapper_kvgdlgr_to = wrapper_kvgdlgr_size * (thread +1) / NUM_THREADS;\
+#define WRAPPER_ITERATE_SUBROWS_TH(wrapper, IT_SUBROW, IT_ROW, CODE) {\
   subrowHash_t IT_SUBROW;\
-  for(IT_SUBROW.v = wrapper_kvgdlgr_from; IT_SUBROW.v < wrapper_kvgdlgr_to; IT_SUBROW.v++){\
+  TYPES_ITERATE_TH(wrapper_subrowSize(wrapper), WRAPPER_ITERATE__from, IT_SUBROW.v, {\
     if(wrapper_containsSubrow(wrapper, IT_SUBROW)){\
       bitArray_t IT_ROW = wrapper_getSubrow2Row(wrapper, IT_SUBROW);\
       { CODE }\
     }\
-  }\
+  })\
 }
 
 T__THREAD_SAFE T__LEAKS void *wrapper_getRowInfo(wrapper_t storage, bitArray_t sub);

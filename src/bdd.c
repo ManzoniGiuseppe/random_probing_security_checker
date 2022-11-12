@@ -90,7 +90,7 @@ void bdd_storage_free(bdd_t s){
 
 // -- get
 
-static inline bdd_node_t bdd_get_node(bdd_t s, bdd_fn_t x){
+T__THREAD_SAFE static inline bdd_node_t bdd_get_node(bdd_t s, bdd_fn_t x){
   bdd_node_t ret = *(bdd_node_t*)hashSet_getKey(P(s)->storage, BDD_HASH(x));
   if(bdd_is_negated(x)){
     ret.v[0] = bdd_op_neg(ret.v[0]);
@@ -204,9 +204,7 @@ bdd_fn_t bdd_val_single(bdd_t s, wire_t inputBit){
   CACHE_ADD__key.param[0] = (p0);\
   CACHE_ADD__key.param[1] = (p1);\
 \
-  bdd_fn_t *CACHE_ADD__r = hashCache_getValue(cacheOp, &CACHE_ADD__key);\
-  if(CACHE_ADD__r != NULL){\
-    RET = *CACHE_ADD__r;\
+  if(hashCache_getValue(cacheOp, &CACHE_ADD__key, &RET)){\
     ON_DBG(DBG_LVL_TOFIX, {\
       if(RET == 0) FAIL("bdd: cacheOp's hashCache just returned a 0, which is an illegal index.\n")\
     })\
@@ -214,10 +212,11 @@ bdd_fn_t bdd_val_single(bdd_t s, wire_t inputBit){
     { CODE }\
     hashCache_set(cacheOp, &CACHE_ADD__key, &RET);\
     ON_DBG(DBG_LVL_TOFIX, {\
-      bdd_fn_t *CACHE_ADD__r = hashCache_getValue(cacheOp, &CACHE_ADD__key);\
-      if(CACHE_ADD__r == NULL) FAIL("bdd: cacheOp's hashCache couldn't find a valud just added.")\
-      bdd_fn_t CACHE_ADD__ret = *CACHE_ADD__r;\
-      if(CACHE_ADD__ret != RET) FAIL("bdd: cacheOp's hashCache returned a value that wasn't what inserted.")\
+      if(NUM_THREADS == 1){\
+        bdd_fn_t CACHE_ADD__r;\
+        if(!hashCache_getValue(cacheOp, &CACHE_ADD__key, &CACHE_ADD__r)) FAIL("bdd: cacheOp's hashCache couldn't find a valud just added.")\
+        if(CACHE_ADD__r != RET) FAIL("bdd: cacheOp's hashCache returned a value that wasn't what inserted.")\
+      }\
     })\
   }\
 }
@@ -227,17 +226,15 @@ bdd_fn_t bdd_val_single(bdd_t s, wire_t inputBit){
   memset(&CACHE_ADD__key, 0, sizeof(cacheSum_elem_t));\
   CACHE_ADD__key.param = (V);\
   CACHE_ADD__key.numRnds = (rnds);\
-  fixed_cell_t *CACHE_ADD__r = hashCache_getValue(cacheSum, &CACHE_ADD__key);\
-  if(CACHE_ADD__r != NULL){\
-    RET = *CACHE_ADD__r;\
-  }else{\
+  if(!hashCache_getValue(cacheSum, &CACHE_ADD__key, &RET)){\
     { CODE }\
     hashCache_set(cacheSum, &CACHE_ADD__key, &RET);\
     ON_DBG(DBG_LVL_TOFIX, {\
-      fixed_cell_t *CACHE_ADD__r = hashCache_getValue(cacheSum, &CACHE_ADD__key);\
-      if(CACHE_ADD__r == NULL) FAIL("bdd: cacheOp's hashCache couldn't find a valud just added.")\
-      fixed_cell_t CACHE_ADD__ret = *CACHE_ADD__r;\
-      if(CACHE_ADD__ret != RET) FAIL("bdd: cacheOp's hashCache returned a value that wasn't what inserted.")\
+      if(NUM_THREADS == 1){\
+        fixed_cell_t CACHE_ADD__r;\
+        if(!hashCache_getValue(cacheSum, &CACHE_ADD__key, &CACHE_ADD__r)) FAIL("bdd: cacheOp's hashCache couldn't find a valud just added.")\
+        if(CACHE_ADD__r != RET) FAIL("bdd: cacheOp's hashCache returned a value that wasn't what inserted.")\
+      }\
     })\
   }\
 }
@@ -351,7 +348,7 @@ bdd_fn_t bdd_op_xor(bdd_t s, bdd_fn_t val0, bdd_fn_t val1){
 
 
 
-static void getFlatened(bdd_t s, bdd_fn_t val, bdd_fn_t *ret, wire_t numMaskedIns, size_t lowest, shift_t input){
+T__THREAD_SAFE static void getFlatened(bdd_t s, bdd_fn_t val, bdd_fn_t *ret, wire_t numMaskedIns, size_t lowest, shift_t input){
   if(bdd_is_leaf(val)){
     DBG(DBG_LVL_MAX, "getFlatened of leaf %s with numMaskedIns=%ld, ret=%llX, lowest=%ld, input=%ld\n", val == BDD_TRUE ? "T" : "F", (long) numMaskedIns, ret, (long) lowest, (long) input);
     for(size_t i = 0; i < 1ull << (numMaskedIns - input); i++)
@@ -386,14 +383,14 @@ static void getFlatened(bdd_t s, bdd_fn_t val, bdd_fn_t *ret, wire_t numMaskedIn
   DBG(DBG_LVL_MAX, "getFlatened of $llX's return set\n", (long long) val);
 }
 
-void bdd_get_flattenedInputs(bdd_t s, bdd_fn_t val, wire_t numMaskedIns, bdd_fn_t *ret){
+T__THREAD_SAFE void bdd_get_flattenedInputs(bdd_t s, bdd_fn_t val, wire_t numMaskedIns, bdd_fn_t *ret){
   DBG(DBG_LVL_DETAILED, "bdd_get_flattenedInputs of %llX with numMaskedIns=%d\n", (long long) val, numMaskedIns);
   getFlatened(s, val, ret, numMaskedIns, 0, 0);
 }
 
 
 
-static fixed_cell_t sumRandomsPN1(bdd_t s, bdd_fn_t val, wire_t numRnds, int depth){
+T__THREAD_SAFE static fixed_cell_t sumRandomsPN1(bdd_t s, bdd_fn_t val, wire_t numRnds, int depth){
   DBG(DBG_LVL_MAX, "sumRandomsPN1 with val=%llX numRnds=%ld depth=%d\n", (long long) val, (long) numRnds, depth);
   if(bdd_is_negated(val)) return -sumRandomsPN1(s, bdd_op_neg(val), numRnds, depth+1);
   if(bdd_is_leaf(val)) return -( ((fixed_cell_t) 1) << numRnds );
@@ -413,7 +410,7 @@ static fixed_cell_t sumRandomsPN1(bdd_t s, bdd_fn_t val, wire_t numRnds, int dep
   return ret;
 }
 
-fixed_cell_t bdd_get_sumRandomsPN1(bdd_t s, bdd_fn_t val, wire_t numRnds){
+T__THREAD_SAFE fixed_cell_t bdd_get_sumRandomsPN1(bdd_t s, bdd_fn_t val, wire_t numRnds){
   DBG(DBG_LVL_DETAILED, "bdd_get_sumRandomsPN1 of %llX with numRnds=%d\n", (long long) val, numRnds);
   fixed_cell_t ret = sumRandomsPN1(s, val, numRnds, 1);
   DBG(DBG_LVL_DETAILED, "bdd_get_sumRandomsPN1 of %llX is %f\n", (long long) val, (double) ret);

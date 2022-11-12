@@ -15,6 +15,6 @@ typedef struct { void *transformGenerator; } transformGenerator_t;
 T__THREAD_SAFE transformGenerator_t transformGenerator_alloc(rowHashed_t rows, gadget_t *g);
 void transformGenerator_free(transformGenerator_t storage);
 
-T__THREAD_SAFE void transformGenerator_getTranform(transformGenerator_t storage, rowHash_t row, wire_t numMaskedIns, wire_t numRnds, fixed_cell_t *transform); // transform[1ll << numMaskedIns]
+T__THREAD_SAFE void transformGenerator_getTranform(transformGenerator_t storage, rowHash_t row, wire_t numMaskedIns, wire_t numRnds, fixed_cell_t *ret_transform); // transform[1ll << numMaskedIns]
 
 #endif // _TRANSFORM_GENERATOR_H_

@@ -11,9 +11,15 @@
 
 
 #if NUM_THREADS > 1
+  static thread_local int thread = -1;
+  int multithread_thr_getId(void){
+    return thread;
+  }
+
   int multithread_thr_parallel_i(void *p){
     multithread_thr_parallel_t *v = (multithread_thr_parallel_t*)p;
-    v->fn(v->info, v->th);
+    thread = v->th;
+    v->fn(v->info);
     return 0;
   }
 #endif

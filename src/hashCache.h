@@ -18,8 +18,8 @@ T__THREAD_SAFE hashCache_t hashCache_new(size_t size_k, size_t size_v, T__ACQUIR
 void hashCache_delete(hashCache_t ht);
 
 
-void hashCache_set(hashCache_t ht, void *key, void *value);
-T__THREAD_SAFE T__LEAKS void* hashCache_getValue(hashCache_t ht, void *key); // returns NULL if missing
+T__THREAD_SAFE void hashCache_set(hashCache_t ht, void *key, void *value);
+T__THREAD_SAFE bool hashCache_getValue(hashCache_t s, void *key, void *ret_value); // returns if present. If so, it sets ret_value
 
 
 

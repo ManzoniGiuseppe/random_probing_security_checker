@@ -45,13 +45,13 @@ T__THREAD_SAFE static void getInfo(void *getInfo_param, wire_t d, wire_t numIns,
   })
 }
 
-T__THREAD_SAFE static void iterateOverUniqueBySubrows(gadget_t *g, wire_t maxCoeff, wire_t t, wrapper_t w, int thread){
+T__THREAD_SAFE static void iterateOverUniqueBySubrows(gadget_t *g, wire_t maxCoeff, wire_t t, wrapper_t w){
   wire_t numMaskedIns = g->d * g->numIns;
   size_t numNoRndCols = 1ll << numMaskedIns;
 
   double **infos = mem_calloc(sizeof(double*), 1ll << (maxCoeff + t*g->numOuts), "rpcSd's subrows infos.");
 
-  WRAPPER_ITERATE_SUBROWS(w, thread, h, row, {
+  WRAPPER_ITERATE_SUBROWS_TH(w, h, row, {
     wire_t rowCount1 = bitArray_count1(g->numTotOuts, row);
     {
       size_t i = 0;
@@ -97,8 +97,12 @@ void calc_rpcCor1(gadget_t *g, wire_t maxCoeff, wire_t t, double *ret_coeffs){
   wire_t numMaskedIns = g->d * g->numIns;
   size_t numNoRndCols = 1ll << numMaskedIns;
 
+  BITARRAY_DEF_VAR(numNoRndCols, transformPositions)
+  for(size_t i = 1; i < numNoRndCols; i++) // 0 excluded
+    bitArray_set(numNoRndCols, transformPositions, i);
+
   rowInfo_generator_t w_gen = (rowInfo_generator_t){
-    .hashTheTransforms = 1,
+    .hashTheTransforms_usingPositions = transformPositions,
     .infoSize = sizeof(double) * numNoRndCols * numNoRndCols,
     .getInfo_param = &getInfo_p,
     .getInfo = getInfo

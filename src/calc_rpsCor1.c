@@ -31,11 +31,11 @@ T__THREAD_SAFE static void getInfo(__attribute__((unused)) void *getInfo_param, 
   })
 }
 
-T__THREAD_SAFE static void iterateOverUniqueBySubrows(gadget_t *g, wire_t maxCoeff, __attribute__((unused)) wire_t t, wrapper_t w, int thread){
+T__THREAD_SAFE static void iterateOverUniqueBySubrows(gadget_t *g, wire_t maxCoeff, __attribute__((unused)) wire_t t, wrapper_t w){
   double sdMax = 1 - ldexp(1.0, -g->numIns);
   double **infos = mem_calloc(sizeof(double*), 1ll << maxCoeff, "rpsCor1's subrows infos.");
 
-  WRAPPER_ITERATE_SUBROWS(w, thread, h, row, {
+  WRAPPER_ITERATE_SUBROWS_TH(w, h, row, {
     wire_t rowCount1 = bitArray_count1(g->numTotOuts, row);
     {
       size_t i = 0;
@@ -69,9 +69,16 @@ T__THREAD_SAFE static void iterateOverUniqueBySubrows(gadget_t *g, wire_t maxCoe
 void calc_rpsCor1(gadget_t *g, wire_t maxCoeff, double *ret_coeffs){
   double sdMax = 1 - ldexp(1.0, -g->numIns);
 
+  wire_t numMaskedIns = g->d * g->numIns;
+  size_t numNoRndCols = 1ll << numMaskedIns;
+
+  BITARRAY_DEF_VAR(numNoRndCols, transformPositions)
+  for(size_t i = 1; i < 1ull << g->numIns; i++) // 0 excluded
+    bitArray_set(numNoRndCols, transformPositions, calcUtils_intExpandByD(g->d, i));
+
   size_t numCols = 1ll << g->numIns;
   rowInfo_generator_t w_gen = (rowInfo_generator_t){
-    .hashTheTransforms = 1,
+    .hashTheTransforms_usingPositions = transformPositions,
     .infoSize = sizeof(double) * numCols,
     .getInfo_param = NULL,
     .getInfo = getInfo

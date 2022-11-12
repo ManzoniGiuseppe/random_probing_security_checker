@@ -63,6 +63,13 @@ echo ";"  >> ${oDir}/help.c
 
 # MAX_NUM_MASKED_INS must be <= 64
 
+hashCache_splitBits=0
+hashCache_splitNum=1
+while [ "$hashCache_splitNum" -le $(expr "${numThreads}" \* 8) ] ; do # ensure probability of getting a locked split is ~12 %
+  hashCache_splitBits=$(expr ${hashCache_splitBits} + 1)
+  hashCache_splitNum=$(expr ${hashCache_splitNum} \* 2)
+done
+
 preprocFlags=""
 preprocFlags="${preprocFlags} -DNUM_THREADS=$numThreads"
 preprocFlags="${preprocFlags} -DMAX_NUM_TOT_INS=126"
@@ -73,6 +80,7 @@ preprocFlags="${preprocFlags} -DHASHMAP_HASH_ATTEMPTS=5"
 preprocFlags="${preprocFlags} -DHASHMAP_SAVE_HASH_RATIO=5"
 preprocFlags="${preprocFlags} -DHASHCACHE_BITS=22"
 preprocFlags="${preprocFlags} -DHASHCACHE_WAYS=4"
+preprocFlags="${preprocFlags} -DHASHCACHE_SPLIT_BITS=${hashCache_splitBits}"
 preprocFlags="${preprocFlags} -DFN_CMP_STEP=0.0001"
 preprocFlags="${preprocFlags} -DMAX_LEN_VAR_NAMES=100"
 preprocFlags="${preprocFlags} -DMAX_FILE_SIZE=1000000"
@@ -80,17 +88,17 @@ preprocFlags="${preprocFlags} -DMAX_FILE_SIZE=1000000"
 if [ "$isDbg" -eq 1 ] ; then
   dbgLvl="DBG_LVL_MAX"
   dbgLvl="DBG_LVL_DETAILED"
-  preprocFlags="${preprocFlags} -DDBG_MEM=${dbgLvl}"
   dbgLvl="DBG_LVL_MINIMAL"
+  preprocFlags="${preprocFlags} -DDBG_ROWINFO=${dbgLvl}"
+  preprocFlags="${preprocFlags} -DDBG_WRAPPER=${dbgLvl}"
+  preprocFlags="${preprocFlags} -DDBG_MEM=${dbgLvl}"
   dbgLvl="DBG_LVL_TOFIX"
   preprocFlags="${preprocFlags} -DDBG_HASHMAP=${dbgLvl}"
-  preprocFlags="${preprocFlags} -DDBG_WRAPPER=${dbgLvl}"
   preprocFlags="${preprocFlags} -DDBG_ROWHASHED=${dbgLvl}"
   preprocFlags="${preprocFlags} -DDBG_HASH=${dbgLvl}"
   preprocFlags="${preprocFlags} -DDBG_BDD=${dbgLvl}"
   preprocFlags="${preprocFlags} -DDBG_HASHCACHE=${dbgLvl}"
   preprocFlags="${preprocFlags} -DDBG_BITARRAY=${dbgLvl}"
-  preprocFlags="${preprocFlags} -DDBG_ROWINFO=${dbgLvl}"
   preprocFlags="${preprocFlags} -DDBG_SUBROWHASHED=${dbgLvl}"
   preprocFlags="${preprocFlags} -DDBG_ROWINDEXEDSET=${dbgLvl}"
   preprocFlags="${preprocFlags} -DDBG_TRANSFORMGENERATOR=${dbgLvl}"

@@ -40,6 +40,16 @@ T__THREAD_SAFE bool rowIndexedSet_hasVal(rowIndexedSet_t ht, reducedHash_t valIn
   }\
 }
 
+#define ROWINDEXEDSET_ITERATE_TH(map, BASE, REDUCED_INDEX, VALINDEX, CODE) {\
+  reducedHash_t REDUCED_INDEX;\
+  TYPES_ITERATE_TH(rowIndexedSet_currSize(map), BASE, REDUCED_INDEX, {\
+    void *VALINDEX;\
+    if(rowIndexedSet_hasVal(map, REDUCED_INDEX, &VALINDEX)){\
+      { CODE }\
+    }\
+  })\
+}
+
 
 
 #endif //  _ROW_INDEXED_SET_H_

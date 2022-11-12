@@ -149,7 +149,7 @@ int main(){
 
 EOF
 
-  gcc -O3 -Wall -Wextra -DDBG_BITARRAY=1 $dir/test.c ../src/types.c -pthread -o $dir/test
+  gcc -O3 -Wall -Wextra -DDBG_BITARRAY=1 -DNUM_THREADS=1 $dir/test.c ../src/types.c -pthread -o $dir/test
   if [ "$?" -eq 0 ] ;then
     $dir/test
   else

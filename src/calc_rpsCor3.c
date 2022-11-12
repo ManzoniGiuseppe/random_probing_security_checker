@@ -30,10 +30,10 @@ T__THREAD_SAFE static void getInfo(__attribute__((unused)) void *getInfo_param, 
   ret->hasCorr = 0;
 }
 
-T__THREAD_SAFE static void iterateOverUniqueBySubrows(gadget_t *g, __attribute__((unused)) wire_t maxCoeff, __attribute__((unused)) wire_t t, wrapper_t w, int thread){
+T__THREAD_SAFE static void iterateOverUniqueBySubrows(gadget_t *g, __attribute__((unused)) wire_t maxCoeff, __attribute__((unused)) wire_t t, wrapper_t w){
   double sdMax = 1 - ldexp(1.0, -g->numIns);
 
-  WRAPPER_ITERATE_SUBROWS(w, thread, i, row, {
+  WRAPPER_ITERATE_SUBROWS_TH(w, i, row, {
     ITERATE_OVER_SUB_ROWS(g->numTotOuts, row, sub, {
       rowInfo_v_t *info = wrapper_getRowInfo(w, sub);
       if(info->hasCorr){
@@ -48,7 +48,7 @@ void calc_rpsCor3(gadget_t *g, wire_t maxCoeff, double *ret_coeffs){
   double sdMax = 1 - ldexp(1.0, -g->numIns);
 
   rowInfo_generator_t w_gen = (rowInfo_generator_t){
-    .hashTheTransforms = 0,
+    .hashTheTransforms_usingPositions = NULL,
     .infoSize = sizeof(rowInfo_v_t),
     .getInfo_param = NULL,
     .getInfo = getInfo

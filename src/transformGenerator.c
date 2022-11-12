@@ -111,7 +111,7 @@ __attribute__((unused)) static void inPlaceTransform(fixed_cell_t *tr, size_t si
   inPlaceTransform(tr+h, h);
 }
 
-void transformGenerator_getTranform(transformGenerator_t s, rowHash_t row, wire_t numMaskedIns, wire_t numRnds, fixed_cell_t *transform){ // transform[1ll << numMaskedIns]
+T__THREAD_SAFE void transformGenerator_getTranform(transformGenerator_t s, rowHash_t row, wire_t numMaskedIns, wire_t numRnds, fixed_cell_t *transform){ // transform[1ll << numMaskedIns]
   DBG(DBG_LVL_DETAILED, "getting the flattened inputs for numMaskedIns=%d...\n", numMaskedIns);
   bdd_fn_t inputs[1ll << numMaskedIns];
   bdd_get_flattenedInputs(P(s)->bddStorage, P(s)->rowIndex2bdd[row.v], numMaskedIns, inputs);

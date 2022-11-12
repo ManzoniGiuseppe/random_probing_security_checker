@@ -39,5 +39,24 @@ T__THREAD_SAFE bool rowHashed_hasVal(rowHashed_t storage, rowHash_t ret);
   }\
 }
 
+#define ROWHASHED_ITERATE_TH(rows, RH, CODE) {\
+  pow2size_t ROWHASHED_ITERATE__size = rowHashed_getSize(rows);\
+  int ROWHASHED_ITERATE__thread = multithread_thr_getId();\
+  size_t ROWHASHED_ITERATE__from, ROWHASHED_ITERATE__to;\
+  if(ROWHASHED_ITERATE__thread >= 0){\
+    ROWHASHED_ITERATE__from = ROWHASHED_ITERATE__size * ROWHASHED_ITERATE__thread / NUM_THREADS;\
+    ROWHASHED_ITERATE__to = ROWHASHED_ITERATE__size * (ROWHASHED_ITERATE__thread +1) / NUM_THREADS;\
+  }else{\
+    ROWHASHED_ITERATE__from = 0;\
+    ROWHASHED_ITERATE__to = ROWHASHED_ITERATE__size;\
+  }\
+  rowHash_t RH;\
+  for(RH.v = ROWHASHED_ITERATE__from; RH.v < ROWHASHED_ITERATE__to; RH.v++){\
+    if(rowHashed_hasVal(rows, RH)){\
+      { CODE }\
+    }\
+  }\
+}
+
 
 #endif //  _ROW_HASHED_H_

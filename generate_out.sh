@@ -114,6 +114,7 @@ generators="${generators} otpoePaper_copy.py__3:1:6"
 generators="${generators} isw_refresh.py__3:1:9"
 generators="${generators} otpoePaper_add.py__3:1:5"
 generators="${generators} otpoePaper_copy.py__3:1:5"
+generators="${generators} otpoePaper_add.py__5:7:3"
 
 for generatorCoeff in $(echo "$generators" | sed "s/^ *//;s/ /\n/") ; do
   genD=$(echo "$generatorCoeff" | sed "s/:.*:.*//")

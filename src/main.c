@@ -14,6 +14,7 @@
 #include "calc.h"
 #include "gadget.h"
 #include "parserSage.h"
+#include "multithread.h"
 
 
 // TODO  otpoePaper_mul.py__5  rpc* seem to fail

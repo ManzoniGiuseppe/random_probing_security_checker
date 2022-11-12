@@ -128,7 +128,13 @@ int main(){
   }
   BITARRAY_DEF_VAR(NUM_TOT_OUTS, first)
   row_first(NUM_TOT_OUTS, first);
-  rowHashed_t rows = rowHashed_alloc(&tryNext_info, NUM_TOT_OUTS, first, tryNext);
+
+  bitArray_iterator_t itRow = (bitArray_iterator_t){
+    .info = &tryNext_info,
+    .first = first,
+    .tryNext = tryNext
+  };
+  rowHashed_t rows = rowHashed_alloc(itRow, NUM_TOT_OUTS);
   transformGenerator_t tg = transformGenerator_alloc(rows, g);
 
   wire_t numMaskedIns = g->d * g->numIns;
@@ -152,6 +158,7 @@ int main(){
 EOF
 
 preprocFlags=""
+preprocFlags="${preprocFlags} -DNUM_THREADS=1"
 preprocFlags="${preprocFlags} -DMAX_NUM_TOT_INS=65"
 preprocFlags="${preprocFlags} -DMEM_NUM_ALLOCS=10000"
 preprocFlags="${preprocFlags} -DHASHMAP_INITIAL_BITS=7"
@@ -160,6 +167,7 @@ preprocFlags="${preprocFlags} -DHASHMAP_HASH_ATTEMPTS=5"
 preprocFlags="${preprocFlags} -DHASHMAP_SAVE_HASH_RATIO=5"
 preprocFlags="${preprocFlags} -DHASHCACHE_BITS=22"
 preprocFlags="${preprocFlags} -DHASHCACHE_WAYS=4"
+preprocFlags="${preprocFlags} -DHASHCACHE_SPLIT_BITS=1"
 preprocFlags="${preprocFlags} -DFN_CMP_STEP=0.0001"
 preprocFlags="${preprocFlags} -DMAX_LEN_VAR_NAMES=100"
 preprocFlags="${preprocFlags} -DMAX_FILE_SIZE=1000000"
