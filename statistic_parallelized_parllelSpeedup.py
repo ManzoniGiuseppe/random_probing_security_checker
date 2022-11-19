@@ -44,15 +44,15 @@ with open('.rpsc.out.stat') as f:
     fn = (v[0].split('/')[2] + '_').split('_')[0]
     gadget = v[0].split('/')[1]
 
-    ineff = float(v[1])
-    toSerial = float(v[2])
+    parallelSpeedup = float(v[1])
+    parallelized = float(v[2])
 
     found=False
     for special in specialNames:
       for type in arrSpecialID[special]:
         if type in file:
           if not found:
-            gadget2arr[special] += [(ineff, toSerial)]
+            gadget2arr[special] += [(parallelized, parallelSpeedup)]
             found=True
     if not found:
       print("Not added:", file)
@@ -68,8 +68,8 @@ for gadget in gadget2arr:
   plt.scatter(x,y,label=gadget,color=gadget2color[gadget])
 
 
-plt.xlabel('inefficiency')
-plt.ylabel('left to serialize')
+plt.xlabel('p: fraction of time being parallelized')
+plt.ylabel('sp: speedup of the parallelized fraction')
 plt.legend(loc='upper left')
 #plt.ylim(0.0000001, 1.05)
 #plt.xlim(0.001, 0.0)

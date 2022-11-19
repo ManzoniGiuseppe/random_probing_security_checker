@@ -12,7 +12,7 @@ out='rpsc'
 
 
 
-numThreads=1
+numThreads=0
 isDbg=0
 isCheck=0
 
@@ -27,7 +27,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-if [ "$numThreads" -lt 1 ] ; then
+if [ "$numThreads" -lt 0 ] ; then
   echo "Invalid number of threads ${numThreads}"
   exit 1
 fi
@@ -65,10 +65,15 @@ echo ";"  >> ${oDir}/help.c
 
 hashCache_splitBits=0
 hashCache_splitNum=1
-while [ "$hashCache_splitNum" -le $(expr "${numThreads}" \* 8) ] ; do # ensure probability of getting a locked split is ~12 %
-  hashCache_splitBits=$(expr ${hashCache_splitBits} + 1)
-  hashCache_splitNum=$(expr ${hashCache_splitNum} \* 2)
-done
+if [ "$numThreads" -gt 0 ] ; then
+  while [ "$hashCache_splitNum" -le $(expr "${numThreads}" \* 8) ] ; do # ensure probability of getting a locked split is ~12 %
+    hashCache_splitBits=$(expr ${hashCache_splitBits} + 1)
+    hashCache_splitNum=$(expr ${hashCache_splitNum} \* 2)
+  done
+else
+  hashCache_splitBits=0
+  hashCache_splitNum=1
+fi
 
 preprocFlags=""
 preprocFlags="${preprocFlags} -DNUM_THREADS=$numThreads"
@@ -147,7 +152,7 @@ warningFlag="${warningFlag} -Werror"
 standardFlag="--std=gnu2x"
 
 libFlag=""
-if [ $numThreads -gt 1 ] ; then
+if [ $numThreads -gt 0 ] ; then
   libFlag="${libFlag} -lpthread"
 fi
 

@@ -8,6 +8,10 @@ To compile
 
     ./compile.sh
 
+To compile so that it execs on N threads (note that -t 0 is to disable multithreading, -t 1 uses the multithreading library but only 1 thread):
+
+    ./compile.sh -t N
+
 To get the coefficient for Random Probing Security:
 
     ./rpsc --sage 'file gadget .sage' -c 'max coefficient' 'op'
@@ -51,7 +55,7 @@ the paper's graphs were made with (and by fiddling the internal parameters to im
 
     ./plot_time_acc.py rps vrapsPaper_add_v3.sage:{3:green,5:blue,7:orange,9:black,12:fuchsia,14:purple}
     ./plot_time_acc.py rps otpoePaper_small_add.sage:{3:green,5:blue,7:orange,9:black}
-    ./plot_time_acc.py rps otpoePaper_add.py__3:{3:green,5:blue,7:orange,9:black}
+    ./plot_time_acc.py rps otpoePaper_add.py__5:{3:green,5:blue,6:orange,7:black}
 
     ./plot_time_acc.py rps vrapsPaper_copy.sage:{3:green,5:blue,7:orange,12:fuchsia,13:black}
     ./plot_test_fn.py .{rpsc,vraps}.out/vrapsPaper_copy.sage/rps*/13.success

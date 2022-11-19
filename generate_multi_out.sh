@@ -6,10 +6,10 @@
 #You should have received a copy of the GNU General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-if [ "$1" -gt 1 ] ; then
+if [ "$1" -gt 0 ] ; then
   true
 else
-  echo "the number of threads (\$1) should be > 1"
+  echo "the number of threads (\$1) should be > 0"
   exit 1
 fi
 

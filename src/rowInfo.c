@@ -120,7 +120,7 @@ typedef struct {
   pow2size_t tr_size;
   size_t tr_baseSize;
   rowIndexedSet_t tr;
-  void *tr2info[NUM_THREADS];
+  void *tr2info[NUM_THREADS > 0 ? NUM_THREADS : 1];
 } rowInfo_storage_t;
 #define P(pub)   ((rowInfo_storage_t *) ((rowInfo_t)(pub)).rowInfo)
 
@@ -159,9 +159,14 @@ T__THREAD_SAFE rowInfo_t rowInfo_build(transformGenerator_t tg, rowHashed_t rows
 
     DBG(DBG_LVL_MINIMAL, "getting infos\n");
     P(ret)->tr_size = rowIndexedSet_currSize(P(ret)->tr);
+#if NUM_THREADS > 0
     P(ret)->tr_baseSize = P(ret)->tr_size / NUM_THREADS;
     for(int i = 0; i < NUM_THREADS; i++)
       P(ret)->tr2info[i] = mem_calloc(gen.infoSize, P(ret)->tr_size / NUM_THREADS + NUM_THREADS, "rowInfo's transform to info");
+#else
+    P(ret)->tr_baseSize = P(ret)->tr_size;
+    P(ret)->tr2info[0] = mem_calloc(gen.infoSize, P(ret)->tr_size, "rowInfo's transform to info");
+#endif
 
     info_tr2info_t info_tr2info = (info_tr2info_t){
       .tr = P(ret)->tr,
@@ -186,7 +191,7 @@ void rowInfo_delete(rowInfo_t s){
     rowIndexedSet_delete(P(s)->direct);
   }else{
     rowIndexedSet_delete(P(s)->tr);
-    for(int i = 0; i < NUM_THREADS; i++)
+    for(int i = 0; i < (NUM_THREADS > 0 ? NUM_THREADS : 1); i++)
       mem_free(P(s)->tr2info[i]);
   }
   mem_free(P(s));
@@ -198,13 +203,17 @@ T__THREAD_SAFE T__LEAKS void * rowInfo_row2info(rowInfo_t s, rowHash_t row){
     return rowIndexedSet_getVal(P(s)->direct, infoHash);
   }else{
     hash_t infoHash = rowIndexedSet_row2valIndex(P(s)->tr, row);
-    size_t index = infoHash.v & (rowIndexedSet_currSize(P(s)->tr)-1);
+    size_t index = infoHash.v & ( rowIndexedSet_currSize(P(s)->tr)-1 );
 
+#if NUM_THREADS > 0
     int i = index / P(s)->tr_baseSize;
     if(i == NUM_THREADS)
       i--;
 
     return P(s)->tr2info[i] + (index - i * P(s)->tr_baseSize) * P(s)->infoSize;
+#else
+    return P(s)->tr2info[0] + index * P(s)->infoSize;
+#endif
   }
 }
 

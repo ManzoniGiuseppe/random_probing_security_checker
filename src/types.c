@@ -53,7 +53,7 @@ void types_print_out(const char* format, ...){
 }
 
 __attribute__ ((noreturn)) void types_exit(void){
-  #if NUM_THREADS > 1
+  #if NUM_THREADS > 0
     if(multithread_bool_exchange(&isExiting, 1, MULTITHREAD_SYNC_THREAD)){
       multithread_thr_exit(1);
     }

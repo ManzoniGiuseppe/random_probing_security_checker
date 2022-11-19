@@ -126,7 +126,7 @@ wrapper_t wrapper_new(
 
   pow2size_t subrowsSize = subrowHashed_numUniqueBySubrow(P(ret)->subrows);
   P(ret)->sdBySubrow = mem_calloc(sizeof(multithread_double_t), subrowsSize * numAlternativeSd, "rpcSd's sdBySubrow");
-  #if NUM_THREADS > 1
+  #if NUM_THREADS > 0
     for(size_t i = 0; i < subrowsSize * numAlternativeSd; i++)
       multithread_double_init(P(ret)->sdBySubrow + i, 0.0);
   #endif

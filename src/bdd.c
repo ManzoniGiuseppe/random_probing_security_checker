@@ -17,6 +17,10 @@
 
 
 
+//#define NUM_THREADS
+
+
+
 #define DBG_FILE  "bdd"
 #define DBG_LVL  DBG_BDD
 
@@ -212,7 +216,7 @@ bdd_fn_t bdd_val_single(bdd_t s, wire_t inputBit){
     { CODE }\
     hashCache_set(cacheOp, &CACHE_ADD__key, &RET);\
     ON_DBG(DBG_LVL_TOFIX, {\
-      if(NUM_THREADS == 1){\
+      if(NUM_THREADS == 0){\
         bdd_fn_t CACHE_ADD__r;\
         if(!hashCache_getValue(cacheOp, &CACHE_ADD__key, &CACHE_ADD__r)) FAIL("bdd: cacheOp's hashCache couldn't find a valud just added.")\
         if(CACHE_ADD__r != RET) FAIL("bdd: cacheOp's hashCache returned a value that wasn't what inserted.")\
@@ -230,7 +234,7 @@ bdd_fn_t bdd_val_single(bdd_t s, wire_t inputBit){
     { CODE }\
     hashCache_set(cacheSum, &CACHE_ADD__key, &RET);\
     ON_DBG(DBG_LVL_TOFIX, {\
-      if(NUM_THREADS == 1){\
+      if(NUM_THREADS == 0){\
         fixed_cell_t CACHE_ADD__r;\
         if(!hashCache_getValue(cacheSum, &CACHE_ADD__key, &CACHE_ADD__r)) FAIL("bdd: cacheOp's hashCache couldn't find a valud just added.")\
         if(CACHE_ADD__r != RET) FAIL("bdd: cacheOp's hashCache returned a value that wasn't what inserted.")\

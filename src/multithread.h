@@ -22,7 +22,7 @@
 #define MULTITHREAD_SYNC_ALL   3
 
 
-#if NUM_THREADS > 1
+#if NUM_THREADS > 0
   #include <threads.h>
   #include <stdatomic.h>
 #endif
@@ -30,7 +30,8 @@
 
 // mutex
 
-#if NUM_THREADS == 1
+
+#if NUM_THREADS == 0
   typedef int multithread_mtx_t;
   inline bool multithread_mtx_init(__attribute__((unused)) multithread_mtx_t *lock){ return 1; }
   T__THREAD_SAFE inline bool multithread_mtx_lock(__attribute__((unused)) multithread_mtx_t *lock){ return 1; }
@@ -47,7 +48,7 @@
 
 // thread
 
-#if NUM_THREADS == 1
+#if NUM_THREADS == 0
   inline void multithread_thr_parallel(void *info, void (*fn)(void *info)){ fn(info); }
   inline int multithread_thr_getId(void){ return -1; }
 #else
@@ -82,7 +83,7 @@
 
 // atomic
 
-#if NUM_THREADS == 1
+#if NUM_THREADS == 0
   #define DEF_TYPE(MULTI_TYPE, UND_TYPE, NAME)   typedef UND_TYPE MULTI_TYPE;
   #define DEF_INIT(MULTI_TYPE, UND_TYPE, NAME)   inline void multithread_##NAME##_init(MULTI_TYPE *b, UND_TYPE val){ *b = val; }
   #define DEF_EXCHANGE(MULTI_TYPE, UND_TYPE, NAME)  T__THREAD_SAFE inline UND_TYPE multithread_##NAME##_exchange(MULTI_TYPE *b, UND_TYPE val, __attribute__((unused)) int sync){ \

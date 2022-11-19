@@ -16,9 +16,6 @@
 
 
 
-//#define NUM_THREADS
-
-
 
 typedef struct { void * wrapper; } wrapper_t;
 

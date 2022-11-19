@@ -87,6 +87,7 @@ double binomial(int n, int k);
 #define inline __attribute__((always_inline)) inline
 
 
+#if NUM_THREADS > 0
 #define TYPES_ITERATE_TH(size, BASE, INDEX, CODE) {\
   size_t TYPES__size = (size);\
   int TYPES__thread = multithread_thr_getId();\
@@ -107,5 +108,14 @@ double binomial(int n, int k);
     { CODE }\
   }\
 }
+#else
+#define TYPES_ITERATE_TH(size, BASE, INDEX, CODE) {\
+  size_t TYPES__size = (size);\
+  size_t BASE = 0;\
+  for(INDEX = BASE; INDEX < TYPES__size; INDEX++){\
+    { CODE }\
+  }\
+}
+#endif
 
 #endif // _TYPES_H_

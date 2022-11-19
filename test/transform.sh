@@ -158,7 +158,7 @@ int main(){
 EOF
 
 preprocFlags=""
-preprocFlags="${preprocFlags} -DNUM_THREADS=1"
+preprocFlags="${preprocFlags} -DNUM_THREADS=0"
 preprocFlags="${preprocFlags} -DMAX_NUM_TOT_INS=65"
 preprocFlags="${preprocFlags} -DMEM_NUM_ALLOCS=10000"
 preprocFlags="${preprocFlags} -DHASHMAP_INITIAL_BITS=7"

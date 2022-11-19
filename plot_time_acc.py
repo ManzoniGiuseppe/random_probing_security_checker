@@ -17,8 +17,8 @@ from matplotlib import pyplot as plt
 
 # option
 
-implementation_legend_location='center right'
-gadget_legend_location='upper left'
+implementation_legend_location='upper left'
+gadget_legend_location='center left'
 use_error=False
 graph_ylim=None
 
@@ -207,7 +207,8 @@ ax.add_artist(legend1)
 
 legend_elements = scatter[1].legend_elements()
 
-legend2 = ax.legend(legend_elements[0], [gadgetInfo[int(i[14:-2])][0].replace('__', ' d=') + ' c=' + str(gadgetInfo[int(i[14:-2])][1]) for i in legend_elements[1]], title="Gadget", loc=gadget_legend_location)
+#legend2 = ax.legend(legend_elements[0], [gadgetInfo[int(i[14:-2])][0].replace('__', ' d=') + ' c=' + str(gadgetInfo[int(i[14:-2])][1]) for i in legend_elements[1]], title="Gadget", loc=gadget_legend_location)
+legend2 = ax.legend(legend_elements[0], [str(gadgetInfo[int(i[14:-2])][1]) for i in legend_elements[1]], title="Max Coeff", loc=gadget_legend_location)
 ax.add_artist(legend2)
 
 

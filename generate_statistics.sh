@@ -5,8 +5,8 @@
 #This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #You should have received a copy of the GNU General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-outSerialDir=".rpsc.out"
 outParallelDir=".rpsc.out-"
+maxParallel=4 #$(ls -d ${outParallelDir}* | sed "s/${outParallelDir}//" | sort | tail -n 1)
 
 function timeToInt(){
   python3 -c "print($(echo $1 | sed 's/s//;s/:/ * 60 + /'))"
@@ -17,23 +17,27 @@ if [ -e .regression.test ] ; then
   exit 1
 fi
 
-for t in $(seq 2 4) ; do
+for t in $(seq 2 $maxParallel) ; do
   for f in $(cd "${outParallelDir}${t}" ; ls -d */* | while read d ; do ls $d/*.success | tail -n 1 ; done) ; do
-    if [ -f "${outSerialDir}/${f}" ] ; then
-      serialExecution=$(timeToInt $(tail -n 1 "${outSerialDir}/${f}"))
-      real=$(timeToInt $(head -n 1 "${outParallelDir}${t}/${f}"))
-      user=$(timeToInt $(head -n 2 "${outParallelDir}${t}/${f}" | tail -n 1))
-      sys=$(timeToInt $(tail -n 1 "${outParallelDir}${t}/${f}"))
+    if [ -f "${outParallelDir}1/${f}" ] ; then
+      serialReal=$(timeToInt $(head -n 1 "${outParallelDir}1/${f}"))
+      serialUser=$(timeToInt $(head -n 2 "${outParallelDir}1/${f}" | tail -n 1))
+      serialSys=$(timeToInt $(tail -n 1 "${outParallelDir}1/${f}"))
+      serialExecution=$(python3 -c "print($serialUser + $serialSys)")
 
-      if [ $(echo "$serialExecution" | sed "s/\..*//") -ge 1 ] ; then
-        timeParallelSync=$(python3 -c "print($user + $sys - $serialExecution)")
-        timeParallelizable=$(python3 -c "print(($user + $sys - $real)*${t}/(${t}-1) - $timeParallelSync)")
-        timeSerial=$(python3 -c "print($serialExecution - $timeParallelizable)")
+      parallelReal=$(timeToInt $(head -n 1 "${outParallelDir}${t}/${f}"))
+      parallelUser=$(timeToInt $(head -n 2 "${outParallelDir}${t}/${f}" | tail -n 1))
+      parallelSys=$(timeToInt $(tail -n 1 "${outParallelDir}${t}/${f}"))
+      parallelExecution=$(python3 -c "print($parallelUser + $parallelSys)")
 
-        inefficency=$(python3 -c "print($timeParallelSync / ($timeParallelizable + $timeParallelSync) * 100)")
-        leftToSerialize=$(python3 -c "print($timeSerial / $serialExecution * 100)")
+      if [ $(echo "$serialExecution" | sed "s/\..*//") -ge 1 ] ; then # if more than 1s
+        parallelTime=$(python3 -c "print($serialExecution - $t/($t-1)*($parallelReal - $parallelExecution/$t))")
+        p=$(python3 -c "print($parallelTime / $serialExecution)")
+        serialTime=$(python3 -c "print($serialExecution - $parallelTime)")
+        sp=$(python3 -c "print( $parallelTime / ($parallelReal - $serialTime) )")
+        s=$(python3 -c "print($serialReal / $parallelReal)")
 
-        echo "${outParallelDir}${t}/${f}:${inefficency}:${leftToSerialize}"
+        echo "${outParallelDir}${t}/${f}:${sp}:${p}:${s}"
       fi
     fi
   done

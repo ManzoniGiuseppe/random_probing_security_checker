@@ -10,7 +10,7 @@
 //#define NUM_THREADS
 
 
-#if NUM_THREADS > 1
+#if NUM_THREADS > 0
   static thread_local int thread = -1;
   int multithread_thr_getId(void){
     return thread;
