@@ -13,8 +13,11 @@
 void calc_rpsCor1(gadget_t *g, wire_t maxCoeff, double *ret_coeffs);
 void calc_rpsCor2(gadget_t *g, wire_t maxCoeff, double *ret_coeffs);
 void calc_rpsCor3(gadget_t *g, wire_t maxCoeff, double *ret_coeffs);
+void calc_rpsVraps(gadget_t *g, wire_t maxCoeff, double *ret_coeffs);
+
 void calc_rpcCor1(gadget_t *g, wire_t maxCoeff, wire_t t, double *ret_coeffs);
 void calc_rpcCor2(gadget_t *g, wire_t maxCoeff, wire_t t, double *ret_coeffs);
+void calc_rpcVraps(gadget_t *g, wire_t maxCoeff, wire_t t, double *ret_coeffs);
 
 
 #endif // _CALC_H_

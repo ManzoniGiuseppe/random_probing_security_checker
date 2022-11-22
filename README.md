@@ -16,13 +16,13 @@ To get the coefficient for Random Probing Security:
 
     ./rpsc --sage 'file gadget .sage' -c 'max coefficient' 'op'
 
-Where op can be either '--rpsCor1', '--rpsCor2', '--rpsCor3'.
+Where op can be either '--rpsCor1', '--rpsCor2', '--rpsCor3', '--rpsVraps'.
 
 To get the coefficient for Random Probing Composability:
 
-    ./rpsc --sage 'file gadget .sage' -c 'max coefficient' 'op' -t 'max number of safely leaking shares'
+    ./rpsc --sage 'file gadget .sage' -c 'max coefficient' 'op' -t 'max number of leaking shares that is considered safe'
 
-Where op can be either '--rpcCor1', '--rpcCor2'.
+Where op can be either '--rpcCor1', '--rpcCor2', '--rpcVraps'.
 
 To get informations on a gadget and an internal representation that can be used to check if it was read correctly do:
 
@@ -44,7 +44,7 @@ Note: In the .sage files:
 
 ## Graphs
 
-the paper's graphs were made with (and by fiddling the internal parameters to improve the layout):
+the thesis' graphs were made with (and by fiddling the internal parameters to improve the layout):
 
     ./plot_test_fn.py .vraps.out/otpoePaper_add.py__3/rpsVraps/*.success
 
@@ -71,6 +71,11 @@ the paper's graphs were made with (and by fiddling the internal parameters to im
 
     ./plot_time_acc.py rpc otpoePaper_small_refresh.sage:{3:green,4:blue,5:orange,6:black}
     ./plot_time_acc.py rpc isw_refresh.py__3:{3:green,5:blue,7:orange,9:black}
+
+
+    ./plot_time_acc.py rps isw_mul.py__3:8:blue
+    ./plot_time_acc.py rpc isw_mul.py__3:5:blue
+
 
 This needs a directory '.vraps.out' that should be created by a script similar to 'generate_out.sh' only that parses VRAPS' output.
 

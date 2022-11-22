@@ -107,7 +107,7 @@ for gadgetCoeff in $(echo "$gadgets" | sed "s/^ *//;s/ /\n/") ; do
 done
 
 generators=""
-generators="${generators} isw_mul.py__3:8:1"
+generators="${generators} isw_mul.py__3:8:5"
 generators="${generators} otpoePaper_mul.py__3:5:1"
 generators="${generators} otpoePaper_add.py__3:9:1"
 generators="${generators} otpoePaper_copy.py__3:1:6"
