@@ -40,7 +40,7 @@ mkdir ${oDir} 2>/dev/null
 touch ${oDir}/toDelete
 rm ${oDir}/*
 
-supportedChar="-_a-zA-Z0-9 :/<>.,:;\`\"'(){}#?+*"
+supportedChar="][_a-zA-Z0-9 :=/<>.,:;\`\"'(){}#?+*-"
 if [ $(cat gpl-3.0.txt | sed "s/[${supportedChar}]//g" | grep -v "^$" | wc -l) -ne 0 ] ; then
   echo "The license was modified, and now it has unsupported characters."
   cat gpl-3.0.txt | sed "s/[${supportedChar}]//g" | grep -v "^$"

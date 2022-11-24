@@ -2,9 +2,9 @@
 
 This tool checks the random probing security properties of a given gadget.
 
-## Execution
+## Compilation
 
-To compile
+To compile for serial execution
 
     ./compile.sh
 
@@ -12,78 +12,45 @@ To compile so that it execs on N threads (note that -t 0 is to disable multithre
 
     ./compile.sh -t N
 
-To get the coefficient for Random Probing Security:
+In both cases the compilation produces an executable called 'rpsc'
 
-    ./rpsc --sage 'file gadget .sage' -c 'max coefficient' 'op'
+## Execution
 
-Where op can be either '--rpsCor1', '--rpsCor2', '--rpsCor3', '--rpsVraps'.
+Exectly an input parameter must be specified, and this tool currently supports the following input formats:
+ - '--sage <file>' for sage files, also supported by VRAPS and IronMask.
 
-To get the coefficient for Random Probing Composability:
+This tool supports pipes, so in bash it's possible to use something like '--sage <(isw_mul.py 5)' in case one has a script 'isw_mul.py' that generates that gadget on the fly given the number of shares.
 
-    ./rpsc --sage 'file gadget .sage' -c 'max coefficient' 'op' -t 'max number of leaking shares that is considered safe'
+It supports the following RPS operations:
+ - '--rpsCor1' for the most accurate and slower
+ - '--rpsCor2' less accuracy and faster
+ - '--rpsCor3' even lower accuracy and faster
+ - '--rpsVraps' the one calculated by VRAPS (which is not complete and may return slightly higher coefficents). Same execution time of '--rpsCor3' but less accurate
 
-Where op can be either '--rpcCor1', '--rpcCor2', '--rpcVraps'.
+It supports the following RPC operations:
+ - '--rpcCor1' for the most accurate and slower
+ - '--rpcCor2' for less accuracy and faster
+ - '--rpcVraps' for the one calculated by VRAPS. Same execution time of '--rpcCor2' but less accurate.
 
-To get informations on a gadget and an internal representation that can be used to check if it was read correctly do:
+In case an RPC operation is used, exactly one of the following options are mandatory:
+ - '-t <max safe number of shares>' see the paper. It must be 0 <= t < d.
 
-    ./rpsc --sage 'file gadget .sage' --printGadget
+It's also possible to specify:
+ - '--help' to show this README.md
+ - '--printGadget' to obtain information on the gadget and to check it's read correctly by this tool.
+ - '-c <max coeff>' to limit the number of coefficients to calculate, the other coefficents will be set to their maximum.
 
-For the .py that generate .sage, it's possible to do (at least in bash):
-
-    ./rpsc --sage <('generator.py' 'parameters') -c 'max coefficient' 'op'
-
-The '--help' prints this readme and terminates, the '--license' prints the GPLv3 and terminates.
-
-If the '-c' is absent, it calculates all coefficients.
+## Inputs
 
 Note: In the .sage files:
  - names are alphanumeric
- - the # directives have no indentation
+ - the # directives have no indentation and must all be at the start
  - any other # is a line-long comment
  - only binary + and *
 
-## Graphs
+## Other
 
-the thesis' graphs were made with (and by fiddling the internal parameters to improve the layout):
-
-    ./plot_test_fn.py .vraps.out/otpoePaper_add.py__3/rpsVraps/*.success
-
-
-    ./plot_time_acc.py rps isw_mul.py__3:{3:green,5:blue,6:orange,8:black}
-    ./plot_time_acc.py rps vrapsPaper_mul.sage:{3:green,4:blue,5:orange,6:black}
-    ./plot_time_acc.py rps otpoePaper_mul.py__3:{3:green,4:blue,5:orange}
-
-    ./plot_time_acc.py rps vrapsPaper_add_v3.sage:{3:green,5:blue,7:orange,9:black,12:fuchsia,14:purple}
-    ./plot_time_acc.py rps otpoePaper_small_add.sage:{3:green,5:blue,7:orange,9:black}
-    ./plot_time_acc.py rps otpoePaper_add.py__5:{3:green,5:blue,6:orange,7:black}
-
-    ./plot_time_acc.py rps vrapsPaper_copy.sage:{3:green,5:blue,7:orange,12:fuchsia,13:black}
-    ./plot_test_fn.py .{rpsc,vraps}.out/vrapsPaper_copy.sage/rps*/13.success
-
-
-    ./plot_time_acc.py rpc vrapsPaper_mul.sage:{2:green,3:blue,4:orange,5:black}
-    ./plot_time_acc.py rpc otpoePaper_small_mul.sage:{2:green,3:blue,4:orange,5:black}
-
-    ./plot_time_acc.py rpc vrapsPaper_add_v3.sage:{2:green,3:blue,4:orange,5:black}
-    ./plot_time_acc.py rpc otpoePaper_small_add.sage:{2:green,3:blue,4:orange,5:black}
-
-    ./plot_time_acc.py rpc otpoePaper_copy.py__3:{3:green,4:blue,5:orange,6:black}
-
-    ./plot_time_acc.py rpc otpoePaper_small_refresh.sage:{3:green,4:blue,5:orange,6:black}
-    ./plot_time_acc.py rpc isw_refresh.py__3:{3:green,5:blue,7:orange,9:black}
-
-
-    ./plot_time_acc.py rps isw_mul.py__3:8:blue
-    ./plot_time_acc.py rpc isw_mul.py__3:5:blue
-
-
-This needs a directory '.vraps.out' that should be created by a script similar to 'generate_out.sh' only that parses VRAPS' output.
-
-The 'plot_time_acc.py' script will create the file '.plot_time_acc.out.png'
-
-## Tests
-
-TODO describe tests and other sub-programs
+See [this readme](README_other_tools.md) for how to use the other tools provided with this tool.
 
 ## Copyright
 
