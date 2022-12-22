@@ -166,8 +166,8 @@ addOp_arr_t addOp_op1(addOp_t s, int op, addOp_arr_t p){
 
 addOp_arr_t addOp_op2(addOp_t s, int op, addOp_arr_t p0, addOp_arr_t p1){
   addOp_2Info_t *i = & P(s)->op2s[op];
-//  if(p0 == p1) return addOp_op1(s, i->same_op1, p0);
-//  if(p0 == addOp_neg(p1)) return addOp_op1(s, i->opposite_op1, p0);
+  if(p0 == p1) return addOp_op1(s, i->same_op1, p0);
+  if(p0 == addOp_neg(p1)) return addOp_op1(s, i->opposite_op1, p0);
 
   addOp_arr_t p[2] = {p0, p1};
 
@@ -200,7 +200,7 @@ addOp_arr_t addOp_op2(addOp_t s, int op, addOp_arr_t p0, addOp_arr_t p1){
 
 
   addOp_arr_t ret;
-//  CACHE_ADD(P(s)->cacheOp2[op], p0, p1, ret, {
+  CACHE_ADD(P(s)->cacheOp2[op], p0, p1, ret, {
     addOp_arr_t a[2][2];
     wire_t w[2];
 
@@ -223,7 +223,7 @@ addOp_arr_t addOp_op2(addOp_t s, int op, addOp_arr_t p0, addOp_arr_t p1){
     }
 
     ret = addOp_node(s, w[min], sub[0], sub[1]);
-//  })
+  })
   return ret;
 }
 
