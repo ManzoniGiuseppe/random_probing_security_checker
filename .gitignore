@@ -5,3 +5,4 @@
 /test/.transform.expected.*
 /rpsc
 .*.swp
+*.ignore
