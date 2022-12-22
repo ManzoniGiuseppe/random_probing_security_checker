@@ -17,7 +17,7 @@ typedef struct {
   bitArray_t hashTheTransforms_usingPositions; // NULL if don't hash the transform and get the info directly.
   size_t infoSize;
   void *getInfo_param;
-  T__THREAD_SAFE void (*getInfo)(void *getInfo_param, wire_t d, wire_t numIns, fixed_cell_t *transform, void *ret_info); // transform[d*numIns], ret is initialized to all 0s.
+  T__THREAD_SAFE void (*getInfo)(void *getInfo_param, wire_t d, wire_t numIns, size_t numberSize, number_t *transform, void *ret_info); // transform contains  '1ll << numMaskedIns'  blocks of  'numberSize'  num_t ; ret_info is initialized to all 0s.
 } rowInfo_generator_t;
 
 rowInfo_t rowInfo_build(transformGenerator_t tg, rowHashed_t rows, rowInfo_generator_t gen, wire_t d, wire_t numIns, wire_t numRnds);

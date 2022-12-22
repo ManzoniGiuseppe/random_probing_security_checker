@@ -138,15 +138,24 @@ int main(){
   transformGenerator_t tg = transformGenerator_alloc(rows, g);
 
   wire_t numMaskedIns = g->d * g->numIns;
-  fixed_cell_t transform[1ll << numMaskedIns];
+  size_t numSize = NUMBER_SIZE(g->numTotIns+3);
+  if(numSize != 1) FAIL("numSize = %ld\n", numSize)
+  number_t transform[(1ll << numMaskedIns) * numSize];
 
   BITARRAY_DEF_VAR(NUM_TOT_OUTS, it)
   row_first(NUM_TOT_OUTS, it);
   do{
     rowHash_t index = rowHashed_hash(rows, it);
-    transformGenerator_getTranform(tg, index, numMaskedIns, g->numRnds, transform);
-    for(size_t i = 0; i < (1ull << numMaskedIns); i++)
-      printf("%d ", transform[i]);
+    transformGenerator_getTranform(tg, index, transform);
+    for(size_t i = 0; i < (1ull << numMaskedIns); i++){
+      number_t * n = &transform[i * numSize];
+      if(number_gez(numSize, n)){
+        printf("%d ", transform[i * numSize]);
+      }else{
+        number_local_negation(numSize, n);
+        printf("%d ", -transform[i * numSize]);
+      }
+    }
     printf("\n");
   }while(tryNext(&tryNext_info, it));
 
@@ -176,6 +185,8 @@ preprocFlags="${preprocFlags} -DDBG_HASHMAP=1"
 preprocFlags="${preprocFlags} -DDBG_HASHCACHE=1"
 preprocFlags="${preprocFlags} -DDBG_MEM=1"
 preprocFlags="${preprocFlags} -DDBG_BDD=1"
+preprocFlags="${preprocFlags} -DDBG_ADDCORE=1"
+preprocFlags="${preprocFlags} -DDBG_ADDOP=1"
 preprocFlags="${preprocFlags} -DDBG_BITARRAY=1"
 preprocFlags="${preprocFlags} -DDBG_ROWHASHED=1"
 preprocFlags="${preprocFlags} -DDBG_TRANSFORMGENERATOR=1"
@@ -186,6 +197,8 @@ sources="${sources} ../src/hashMap.c"
 sources="${sources} ../src/parserSage.c"
 sources="${sources} ../src/rowHashed.c"
 sources="${sources} ../src/transformGenerator.c"
+sources="${sources} ../src/addCore.c"
+sources="${sources} ../src/addOp.c"
 sources="${sources} ../src/bdd.c"
 sources="${sources} ../src/types.c"
 sources="${sources} ../src/mem.c"
@@ -194,7 +207,7 @@ sources="${sources} ../src/row.c"
 sources="${sources} ../src/gadget.c"
 sources="${sources} ../src/hashCache.c"
 
-  gcc -O3 -Wall -Wextra -Werror -I ../src/ $preprocFlags $sources -lpthread -o $dir/prog
+  gcc -O3 -Wall -Wextra -Werror -I ../src/ $preprocFlags $sources -lpthread -lgmp -o $dir/prog
   if [ "$?" -eq 0 ] ;then
     $dir/prog
     if [ "$?" -ne 0 ] ;then
@@ -236,6 +249,7 @@ test(){
   echo
 }
 
+test otpoePaper_small_refresh ../gadgets/otpoePaper_small_refresh.sage
 test vrapsPaper_copy ../gadgets/vrapsPaper_copy.sage
 test vrapsPaper_add_v1 ../gadgets/vrapsPaper_add_v1.sage
 test vrapsPaper_refresh ../gadgets/vrapsPaper_refresh.sage

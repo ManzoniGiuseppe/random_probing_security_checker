@@ -20,12 +20,12 @@ static inline int xor_of_and(size_t v1, size_t v2){
   return (ones % 2 == 0) ? 1 : -1;
 }
 
-T__THREAD_SAFE static void getInfo(__attribute__((unused)) void *getInfo_param, wire_t d, wire_t numIns, fixed_cell_t *transform, void *ret_info){
+T__THREAD_SAFE static void getInfo(__attribute__((unused)) void *getInfo_param, wire_t d, wire_t numIns, size_t numSize, number_t *transform, void *ret_info){
   double *ret = ret_info;
 
   ITERATE_X_UND(numIns, {
     for(size_t i = 1; i < (1ull << numIns); i++){ // 0 excluded
-      double v = transform[calcUtils_intExpandByD(d, i)];
+      double v = * /* TODO do the actual conversion*/ & transform[calcUtils_intExpandByD(d, i) * numSize];
       ret[x] += xor_of_and(i, x) == 1 ? v : -v;
     }
   })
@@ -83,7 +83,7 @@ void calc_rpsCor1(gadget_t *g, wire_t maxCoeff, double *ret_coeffs){
     .getInfo_param = NULL,
     .getInfo = getInfo
   };
-  wrapper_t w = wrapper_new(g, maxCoeff, -1, w_gen, numCols, iterateOverUniqueBySubrows, "rpsCor1");
+  wrapper_t w = wrapper_new(g, maxCoeff, 0, w_gen, numCols, iterateOverUniqueBySubrows, "rpsCor1");
 
   memset(ret_coeffs, 0, sizeof(double) * (g->numTotProbes+1));
   for(size_t x = 0; x < 1ull<<g->numIns; x++){

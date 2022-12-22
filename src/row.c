@@ -19,7 +19,7 @@
 wire_t row_maxShares(bitArray_t r, wire_t numOuts, wire_t d){
   wire_t max = 0;
   uint64_t outputs = bitArray_lowest_get(numOuts*d, r, numOuts*d);
-  for(int o = 0; o < numOuts; o++){
+  for(wire_t o = 0; o < numOuts; o++){
     wire_t val = COUNT_1(outputs & (MASK_OF(d) << (o*d)));
     max = MAX(max, val);
   }
@@ -51,7 +51,7 @@ static bool row_tryNextOut__i(uint64_t *outputs, wire_t o, wire_t d, wire_t t){
 
 bool row_tryNext_outLeqT(bitArray_t curr, wire_t numOuts, wire_t d, wire_t t){
   uint64_t outputs = bitArray_lowest_get(numOuts*d, curr, numOuts*d);
-  for(int o = 0; o < numOuts; o++){
+  for(wire_t o = 0; o < numOuts; o++){
     if(row_tryNextOut__i(&outputs, o, d, t)){
       bitArray_lowest_set(numOuts*d, curr, numOuts*d, outputs);
       return 1;
@@ -65,7 +65,7 @@ bool row_tryNext_outLeqT(bitArray_t curr, wire_t numOuts, wire_t d, wire_t t){
 bool row_tryNext_probeLeqMaxCoeff(bitArray_t curr, wire_t numMaskedOuts, wire_t numTotOuts, wire_t maxCoeff){
   if(bitArray_lowest_get(numTotOuts, curr, numMaskedOuts) != 0) FAIL("row.c: BUG: row_tryNextProbe's parameter includes an output bit\n");
 
-  if(bitArray_count1(numTotOuts, curr) < maxCoeff)
+  if(bitArray_count1(numTotOuts, curr) < (unsigned) maxCoeff)
     return !bitArray_localInc(numTotOuts, curr, numMaskedOuts);
 
   if(maxCoeff == 0) return 0; // only one probe combination: all zeros

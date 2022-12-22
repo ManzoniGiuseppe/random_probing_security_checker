@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <stddef.h>
+#include <sys/types.h>
 
 //#define MAX_NUM_TOT_INS
 
@@ -26,21 +27,9 @@
 
 
 typedef uint8_t bool;
-typedef int_fast32_t wire_t;  // to indicate the number of a wire, input, or output, ... or the number of wires, inputs, outputs, ...
+typedef uint_fast32_t wire_t;  // to indicate the number of a wire, input, or output, ... or the number of wires, inputs, outputs, ...
 typedef int_fast32_t shift_t;  // to indicate something stored as a log_2, for various reasons
 typedef size_t pow2size_t; //  a size_t guaranteed to be a power of 2
-
-
-// fixed point notation 1.numTotIns
-#if 1+MAX_NUM_TOT_INS <= 32-1
-  typedef int32_t fixed_cell_t;
-#elif 1+MAX_NUM_TOT_INS <= 64-1
-  typedef int64_t fixed_cell_t;
-#elif 1+MAX_NUM_TOT_INS <= 128-1
-  typedef __int128 fixed_cell_t;
-#else
-  #error "unsupported 1+MAX_NUM_TOT_INS > 128-1"
-#endif
 
 
 
@@ -51,7 +40,7 @@ double binomial(int n, int k);
 
 
 // useful def
-#define LEAD_1(x) (assert(x), 63 - __builtin_clzll((x)))
+#define LEAD_1(x) (assert(x), (unsigned) 63 - __builtin_clzll((x)))
 #define TAIL_1(x) LEAD_1((x)&-(x))
 #define COUNT_1(x) __builtin_popcountll((x))
 #define ROT(x, pos) ((((uint64_t)(x)) << (pos)) | (((uint64_t)(x)) >> (-(pos) & 63)))
@@ -70,7 +59,8 @@ double binomial(int n, int k);
 
 #define IS_DBG(lvl)  (DBG_LVL >= (lvl))
 #define ON_DBG(lvl, CODE) { if(IS_DBG(lvl)) { CODE } }
-#define DBG(lvl, ...) ON_DBG(lvl, { types_print_err("[" DBG_FILE "] " __VA_ARGS__); })
+#define DBG_PRINT(lvl, ...) ON_DBG(lvl, { types_print_err(__VA_ARGS__); })
+#define DBG(lvl, ...) DBG_PRINT(lvl, "[" DBG_FILE "] " __VA_ARGS__)
 
 // production
 #define DBG_LVL_NONE       0

@@ -29,7 +29,7 @@ static inline int xor_of_and(size_t v1, size_t v2){
   return (ones % 2 == 0) ? 1 : -1;
 }
 
-T__THREAD_SAFE static void getInfo(void *getInfo_param, wire_t d, wire_t numIns, fixed_cell_t *transform, void *ret_info){
+T__THREAD_SAFE static void getInfo(void *getInfo_param, wire_t d, wire_t numIns, size_t numSize, number_t *transform, void *ret_info){
   getInfo_t *p = getInfo_param;
   double *ret = ret_info;
 
@@ -38,9 +38,12 @@ T__THREAD_SAFE static void getInfo(void *getInfo_param, wire_t d, wire_t numIns,
 
   ITERATE_X_ACT(numMaskedIns, {
     ITERATE_II(d, numIns, p->t, {
-      for(size_t i = 0; i < numNoRndCols; i++)
-        if((i &~ ii) != 0)
-          ret[ii_index + x * numNoRndCols] += xor_of_and(i, x) == 1 ? transform[i] : -transform[i];
+      for(size_t i = 0; i < numNoRndCols; i++){
+        if((i &~ ii) != 0){
+          double v = * /*TODO fix conversion*/ & transform[i*numSize];
+          ret[ii_index + x * numNoRndCols] += xor_of_and(i, x) == 1 ? v : -v;
+        }
+      }
     })
   })
 }

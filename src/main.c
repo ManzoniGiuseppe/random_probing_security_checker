@@ -98,7 +98,7 @@ int main(int argc, char **argv){
   }
 
   if(maxCoeff < 0) maxCoeff = g->numTotProbes;
-  if(t >= g->d) FAIL("Parameter T should only be >= 0 and < of the number of shares of the gadget\n")
+  if(t >= (signed) g->d) FAIL("Parameter T should only be >= 0 and < of the number of shares of the gadget\n")
 
   if(printGadget){
     gadget_print(g);

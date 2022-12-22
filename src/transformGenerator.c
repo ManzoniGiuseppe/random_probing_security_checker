@@ -48,6 +48,7 @@ static void fnGenerator(bdd_t bdd, bdd_fn_t *x, bdd_fn_t *ret, gadget_t *g){
 typedef struct {
   bdd_fn_t *rowIndex2bdd;
   bdd_t bddStorage;
+  bdd_sumCached_t bddCached;
   pow2size_t rowIndex2bdd_size;
 } transformGenerator_storage_t;
 #define P(pub)   ((transformGenerator_storage_t *) ((transformGenerator_t)(pub)).transformGenerator)
@@ -58,6 +59,7 @@ transformGenerator_t transformGenerator_alloc(rowHashed_t rows, gadget_t *g){
   DBG(DBG_LVL_MINIMAL, "new with rowSize=%d.\n", rowSize);
   transformGenerator_t ret = { mem_calloc(sizeof(transformGenerator_storage_t), 1, "transformGenerator_alloc's main struct") };
   P(ret)->bddStorage = bdd_storage_alloc();
+  P(ret)->bddCached = bdd_sumCached_new(P(ret)->bddStorage, g->numTotIns, g->numIns * g->d);
   P(ret)->rowIndex2bdd = mem_calloc(sizeof(bdd_fn_t), rowSize, "transformGenerator_alloc's rowIndex2bdd");
   P(ret)->rowIndex2bdd_size = rowSize;
 
@@ -91,37 +93,13 @@ void transformGenerator_free(transformGenerator_t s){
   DBG(DBG_LVL_MINIMAL, "freeing\n");
   mem_free(P(s)->rowIndex2bdd);
   bdd_storage_free(P(s)->bddStorage);
+  bdd_sumCached_delete(P(s)->bddCached);
   mem_free(P(s));
 }
 
 
-// Fast Walsh-Hadamard transform
-__attribute__((unused)) static void inPlaceTransform(fixed_cell_t *tr, size_t size){ // tr must have 1 for false, -1 for true, can accept partially transformed inputs too
-  if (size == 1) return;
 
-  size_t h = size/2;
-  for (size_t i = 0; i < h; i++){
-    fixed_cell_t a = tr[i];
-    fixed_cell_t b = tr[i+h];
-    tr[i] = a + b;
-    tr[i+h] = a - b;
-  }
 
-  inPlaceTransform(tr, h);
-  inPlaceTransform(tr+h, h);
-}
-
-T__THREAD_SAFE void transformGenerator_getTranform(transformGenerator_t s, rowHash_t row, wire_t numMaskedIns, wire_t numRnds, fixed_cell_t *transform){ // transform[1ll << numMaskedIns]
-  DBG(DBG_LVL_DETAILED, "getting the flattened inputs for numMaskedIns=%d...\n", numMaskedIns);
-  bdd_fn_t inputs[1ll << numMaskedIns];
-  bdd_get_flattenedInputs(P(s)->bddStorage, P(s)->rowIndex2bdd[row.v], numMaskedIns, inputs);
-
-  for(wire_t i = 0; i < (1ll << numMaskedIns); i++){
-    DBG(DBG_LVL_DETAILED, "getting the sum of randoms for input combination %lX...\n", (long)i);
-    transform[i] = bdd_get_sumRandomsPN1(P(s)->bddStorage, inputs[i], numRnds);
-  }
-
-  DBG(DBG_LVL_DETAILED, "calculating the transform...\n");
-  inPlaceTransform(transform, 1ll << numMaskedIns);
-  DBG(DBG_LVL_DETAILED, "calculated.\n");
+T__THREAD_SAFE void transformGenerator_getTranform(transformGenerator_t s, rowHash_t row, number_t *ret){ // ret contains  1ll << numMaskedIns  blocks of  NUM_SIZE(numTotIns+3)  num_t
+  bdd_sumCached_transform(P(s)->bddCached, P(s)->rowIndex2bdd[row.v], ret);
 }

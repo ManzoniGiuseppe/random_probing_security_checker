@@ -260,7 +260,7 @@ static void resize(hashMap_t ht){
   SWAP(void *, P(newMap)->table, P(ht)->table)
   SWAP(hash_compact_t *, P(newMap)->hashes, P(ht)->hashes)
   SWAP(bitArray_t, P(newMap)->isPresent, P(ht)->isPresent)
-  SWAP(shift_t, P(newMap)->num_elem, P(ht)->num_elem)
+  SWAP(pow2size_t, P(newMap)->num_elem, P(ht)->num_elem)
   hashMap_delete(newMap);
 }
 

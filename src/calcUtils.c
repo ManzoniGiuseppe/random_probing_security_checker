@@ -31,8 +31,8 @@ void calcUtils_addTotProbeMulteplicity(double *addToCoeffs, double toAdd, wire_t
 wire_t calcUtils_maxSharesIn(wire_t d, wire_t numIns, size_t value){
   wire_t ret = 0;
   size_t mask = MASK_OF(d);
-  for(int i = 0; i < numIns; i++){
-    int v = __builtin_popcountll(value & (mask << (i*d)));
+  for(wire_t i = 0; i < numIns; i++){
+    unsigned v = __builtin_popcountll(value & (mask << (i*d)));
     ret = v > ret ? v : ret;
   }
   return ret;
@@ -41,7 +41,7 @@ wire_t calcUtils_maxSharesIn(wire_t d, wire_t numIns, size_t value){
 static double calculateF(wire_t maxCoeff, double *coeffs, double p){
   double ret = 0.0;
   double pi;
-  shift_t i;
+  size_t i;
   for(pi = 1.0, i = 0; i <= maxCoeff; i++, pi *= p){
     ret += coeffs[i] * pi;
   }

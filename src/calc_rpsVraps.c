@@ -18,11 +18,11 @@ typedef struct{
   bool hasCorr;
 } rowInfo_v_t;
 
-T__THREAD_SAFE static void getInfo(__attribute__((unused)) void *getInfo_param, wire_t d, wire_t numIns, fixed_cell_t *transform, void *ret_info){
+T__THREAD_SAFE static void getInfo(__attribute__((unused)) void *getInfo_param, wire_t d, wire_t numIns, size_t numSize, number_t *transform, void *ret_info){
   rowInfo_v_t *ret = ret_info;
 
   for(size_t i = 1; i < (1ull << numIns); i++){
-    if(transform[calcUtils_intExpandByD(d, i)] != 0){
+    if(!number_isZero(numSize, &transform[calcUtils_intExpandByD(d, i) * numSize])){
       ret->hasCorr = 1;
       return;
     }
@@ -49,7 +49,7 @@ void calc_rpsVraps(gadget_t *g, wire_t maxCoeff, double *ret_coeffs){
     .getInfo_param = NULL,
     .getInfo = getInfo
   };
-  wrapper_t w = wrapper_new(g, maxCoeff, -1, w_gen, 1, iterateOverUniqueBySubrows, "rpsCor3");
+  wrapper_t w = wrapper_new(g, maxCoeff, 0, w_gen, 1, iterateOverUniqueBySubrows, "rpsCor3");
 
   memset(ret_coeffs, 0, sizeof(double) * (g->numTotProbes+1));
   BITARRAY_DEF_VAR(g->numTotOuts, row)

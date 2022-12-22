@@ -246,7 +246,7 @@ static T__THREAD_SAFE void parser_fn(void *fn_info, gadget_fnBuilder_t builder){
   }
 
 
-  for(int i = 0; i < d*numOuts; i++){
+  for(wire_t i = 0; i < d*numOuts; i++){
     wire_t w = findWire(wires_size, wires_n, outs[i]);
     if(w == wires_size) FAIL("Out '%s' not assigned!\n", outs[i])
     builder.out(builder.state, wires_v[w], i/d, i%d);

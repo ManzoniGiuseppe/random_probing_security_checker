@@ -10,28 +10,13 @@
 #include <stdint.h>
 #include "types.h"
 #include "hash.h"
+#include "number.h"
 
 
-//#define MAX_NUM_TOT_INS
 
-
-#define BDD_FLAGS 1
 
 typedef uint64_t bdd_fn_t;
-#define MAX_NUM_TOT_INS__LOG2   (64 - HASH_WIDTH - BDD_FLAGS)
-
-// HASH_WIDTH = 48  means MAX_NUM_TOT_INS__LOG2 = 64 -48 - BDD_FLAGS = 15, which means it can handle MAX_NUM_TOT_INS = 32768 wires.
-// lowering HASH_WIDTH increases the MAX_NUM_TOT_INS__LOG2, which allows to support more wires.
-#if HASH_WIDTH >= 48
-  #error "unsupported 48 used of indexes, a computer with that much memory is outside the current target."
-#endif
-#if MAX_NUM_TOT_INS >= 32768
-  #error "unsupported MAX_NUM_TOT_INS >= 32768"
-#endif
-
-
 typedef struct { void *bdd; } bdd_t;
-
 
 
 bdd_t bdd_storage_alloc(void);
@@ -42,13 +27,30 @@ bdd_fn_t bdd_val_single(bdd_t storage, wire_t inputBit);
 
 bdd_fn_t bdd_op_not(bdd_t storage, bdd_fn_t val);
 bdd_fn_t bdd_op_and(bdd_t storage, bdd_fn_t val0, bdd_fn_t val1);
+bdd_fn_t bdd_op_or(bdd_t storage, bdd_fn_t val0, bdd_fn_t val1);
 bdd_fn_t bdd_op_xor(bdd_t storage, bdd_fn_t val0, bdd_fn_t val1);
 
-T__THREAD_SAFE void bdd_get_flattenedInputs(bdd_t storage, bdd_fn_t val, wire_t numMaskedIns, bdd_fn_t *ret); // ret[1ll << numMaskedIns];
-T__THREAD_SAFE fixed_cell_t bdd_get_sumRandomsPN1(bdd_t storage, bdd_fn_t val, wire_t numRnds);
+T__THREAD_SAFE void bdd_flattenR(bdd_t s, bdd_fn_t p, wire_t maxDepth, hash_t *ret_hash, bool *ret_isPos);
 
 T__THREAD_SAFE double bdd_dbg_storageFill(bdd_t storage);
 T__THREAD_SAFE double bdd_dbg_hashConflictRate(bdd_t storage);
+
+
+
+
+
+typedef struct { void *bdd_sumCached; } bdd_sumCached_t;
+
+T__THREAD_SAFE bdd_sumCached_t bdd_sumCached_new(bdd_t storage, wire_t numTotIns, wire_t numMaskedIns);
+void bdd_sumCached_delete(bdd_sumCached_t cached);
+
+
+T__THREAD_SAFE void bdd_sumCached_transform(bdd_sumCached_t cached, bdd_fn_t val, number_t *ret);  // ret contains  1ll << numMaskedIns  blocks of  NUM_SIZE(numTotIns+3)  num_t
+
+
+
+
+
 
 
 #endif // _BDD_H_

@@ -4,419 +4,266 @@
 //This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 //You should have received a copy of the GNU General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
-
 #include "bdd.h"
 #include "mem.h"
-#include "hashSet.h"
-#include "hashMap.h"
+#include "addOp.h"
 #include "hashCache.h"
+#include "string.h"
 
 
-
-//#define NUM_THREADS
-
-
-
-#define DBG_FILE  "bdd"
-#define DBG_LVL  DBG_BDD
+#define OP1_ID  0
+#define OP1_0   1
+#define OP1_1   2
+#define OP2_AND  0
+#define OP2_XOR  1
 
 
+#define BDD_CONST(x)  addOp_leaf((hash_t){0}, (x))
 
-// -- storageless
-
-
-//   63 input | flags | hash 0
-
-#define BDD_FLAG__NOT (((bdd_fn_t) 1) << HASH_WIDTH)
-#define BDD_HASH(v) ((hash_t){ (v) & MASK_OF(HASH_WIDTH) })
-
-#define bdd_op_neg(x)  ((x) ^ BDD_FLAG__NOT)
-#define bdd_is_negated(x)  (((x) & BDD_FLAG__NOT) != 0)
-
-#define bdd_get_input(x) ((x) >> (HASH_WIDTH + BDD_FLAGS))
-#define bdd_place_input(in)  (((bdd_fn_t) (in)) << (HASH_WIDTH + BDD_FLAGS))
-
-
-#define LEAF_MAGIC_INPUT  MASK_OF(MAX_NUM_TOT_INS__LOG2)
-#define bdd_is_leaf(x)  (bdd_get_input(x) == LEAF_MAGIC_INPUT)
-
-
-#define BDD_TRUE   bdd_place_input(LEAF_MAGIC_INPUT)
-#define BDD_FALSE  bdd_op_neg(BDD_TRUE)
-
-
-
-bdd_fn_t bdd_op_not(__attribute__((unused)) bdd_t storage, bdd_fn_t val){
-  return bdd_op_neg(val);
+T__THREAD_SAFE static addOp_arr_t op1_id(__attribute__((unused)) void *info, addOp_arr_t val){ return val; }
+T__THREAD_SAFE static addOp_arr_t op1_0(__attribute__((unused)) void *info, __attribute__((unused)) addOp_arr_t val){ return BDD_CONST(0); }
+T__THREAD_SAFE static addOp_arr_t op1_1(__attribute__((unused)) void *info, __attribute__((unused)) addOp_arr_t val){ return BDD_CONST(1); }
+T__THREAD_SAFE bool always_isFastLeaf(__attribute__((unused)) void *info, __attribute__((unused)) int paramNum, __attribute__((unused)) hash_t val, __attribute__((unused)) bool isPos){ return 1; }
+T__THREAD_SAFE void op2_and_leaf(__attribute__((unused)) void *info, __attribute__((unused)) hash_t val[2], bool isPos[2], hash_t *ret_val, bool *ret_isPos){
+  *ret_val = (hash_t){0};
+  *ret_isPos = isPos[0] && isPos[1];
 }
-bdd_fn_t bdd_val_const(__attribute__((unused)) bdd_t storage, bool val){
-  return val ? BDD_TRUE : BDD_FALSE;
+T__THREAD_SAFE addOp_arr_t op2_and_fastLeaf(__attribute__((unused)) void *info, __attribute__((unused)) int paramNum, __attribute__((unused)) hash_t val, bool isPos, addOp_arr_t other){
+  if(isPos) return other;
+  else return BDD_CONST(0);
+}
+T__THREAD_SAFE void op2_xor_leaf(__attribute__((unused)) void *info, __attribute__((unused)) hash_t val[2], bool isPos[2], hash_t *ret_val, bool *ret_isPos){
+  *ret_val = (hash_t){0};
+  *ret_isPos = isPos[0] ^ isPos[1];
+}
+T__THREAD_SAFE addOp_arr_t op2_xor_fastLeaf(__attribute__((unused)) void *info, __attribute__((unused)) int paramNum, __attribute__((unused)) hash_t val, bool isPos, addOp_arr_t other){
+  if(isPos) return addOp_neg(other);
+  else return other;
 }
 
-
-
-// -- storage
-
-typedef struct{ bdd_fn_t v[2]; } bdd_node_t;
-
-typedef struct{ bdd_fn_t param[2]; } cacheOp_elem_t;
-typedef struct{ bdd_fn_t param; wire_t numRnds; } cacheSum_elem_t;
 
 typedef struct {
-  hashSet_t storage;
-  hashCache_t cacheAnd;
-  hashCache_t cacheXor;
-  hashCache_t cacheSum;
+  addOp_t a;
+  addOp_1Info_t *op1s;
+  addOp_2Info_t *op2s;
 } bdd_storage_t;
 #define P(pub)   ((bdd_storage_t *) ((bdd_t) (pub)).bdd)
 
+
+#define B2A(x)  (P(x)->a)
+
 bdd_t bdd_storage_alloc(void){
-  bdd_t ret = { mem_calloc(sizeof(bdd_storage_t), 1, "the storage for BDDs!") };
-  P(ret)->storage = hashSet_new(sizeof(bdd_node_t), "bdd's storage");
-  P(ret)->cacheAnd = hashCache_new(sizeof(cacheOp_elem_t), sizeof(bdd_fn_t), "bdd's cacheAnd");
-  P(ret)->cacheXor = hashCache_new(sizeof(cacheOp_elem_t), sizeof(bdd_fn_t), "bdd's cacheXor");
-  P(ret)->cacheSum = hashCache_new(sizeof(cacheSum_elem_t), sizeof(fixed_cell_t), "bdd's cacheSum");
+  bdd_t ret = { mem_calloc(sizeof(bdd_storage_t), 1, "BDD main struct") };
+
+  P(ret)->op1s = mem_calloc(sizeof(addOp_1Info_t), 3, "BDD array of op1");
+  P(ret)->op1s[OP1_ID].info = NULL;
+  P(ret)->op1s[OP1_ID].fast = op1_id;
+  P(ret)->op1s[OP1_ID].leaf = NULL;
+
+  P(ret)->op1s[OP1_0].info = NULL;
+  P(ret)->op1s[OP1_0].fast = op1_0;
+  P(ret)->op1s[OP1_0].leaf = NULL;
+
+  P(ret)->op1s[OP1_1].info = NULL;
+  P(ret)->op1s[OP1_1].fast = op1_1;
+  P(ret)->op1s[OP1_1].leaf = NULL;
+
+  P(ret)->op2s = mem_calloc(sizeof(addOp_2Info_t), 2, "BDD array of op1");
+  P(ret)->op2s[OP2_AND].info = NULL;
+  P(ret)->op2s[OP2_AND].same_op1 = OP1_ID;
+  P(ret)->op2s[OP2_AND].opposite_op1 = OP1_0;
+  P(ret)->op2s[OP2_AND].isFastLeaf = always_isFastLeaf;
+  P(ret)->op2s[OP2_AND].fastLeaf = op2_and_fastLeaf;
+  P(ret)->op2s[OP2_AND].leaf = op2_and_leaf;
+
+  P(ret)->op2s[OP2_XOR].info = NULL;
+  P(ret)->op2s[OP2_XOR].same_op1 = OP1_0;
+  P(ret)->op2s[OP2_XOR].opposite_op1 = OP1_1;
+  P(ret)->op2s[OP2_XOR].isFastLeaf = always_isFastLeaf;
+  P(ret)->op2s[OP2_XOR].fastLeaf = op2_xor_fastLeaf;
+  P(ret)->op2s[OP2_XOR].leaf = op2_xor_leaf;
+
+  P(ret)->a = addOp_new(3, 2, P(ret)->op1s, P(ret)->op2s);
   return ret;
 }
-
 void bdd_storage_free(bdd_t s){
-  hashSet_delete(P(s)->storage);
-  hashCache_delete(P(s)->cacheAnd);
-  hashCache_delete(P(s)->cacheXor);
-  hashCache_delete(P(s)->cacheSum);
+  addOp_delete(B2A(s));
+  mem_free(P(s)->op1s);
+  mem_free(P(s)->op2s);
   mem_free(P(s));
 }
 
+bdd_fn_t bdd_val_const(__attribute__((unused)) bdd_t s, bool val){ return BDD_CONST(val); }
+bdd_fn_t bdd_val_single(bdd_t s, wire_t inputBit){ return addOp_node(B2A(s), inputBit, BDD_CONST(0), BDD_CONST(1)); }
 
-// -- get
+bdd_fn_t bdd_op_not(__attribute__((unused)) bdd_t s, bdd_fn_t val){ return addOp_neg(val); }
+bdd_fn_t bdd_op_and(bdd_t s, bdd_fn_t val0, bdd_fn_t val1){ return addOp_op2(B2A(s), OP2_AND, val0, val1); }
+bdd_fn_t bdd_op_or(bdd_t s, bdd_fn_t val0, bdd_fn_t val1){ return addOp_neg(bdd_op_and(s, addOp_neg(val0), addOp_neg(val1))); }
+bdd_fn_t bdd_op_xor(bdd_t s, bdd_fn_t val0, bdd_fn_t val1){ return addOp_op2(B2A(s), OP2_XOR, val0, val1); }
 
-T__THREAD_SAFE static inline bdd_node_t bdd_get_node(bdd_t s, bdd_fn_t x){
-  bdd_node_t ret = *(bdd_node_t*)hashSet_getKey(P(s)->storage, BDD_HASH(x));
-  if(bdd_is_negated(x)){
-    ret.v[0] = bdd_op_neg(ret.v[0]);
-    ret.v[1] = bdd_op_neg(ret.v[1]);
-  }
-  return ret;
-}
+T__THREAD_SAFE void bdd_flattenR(bdd_t s, bdd_fn_t p, wire_t maxDepth, hash_t *ret_hash, bool *ret_isPos){ addOp_flattenR(B2A(s), p, maxDepth, ret_hash, ret_isPos); }
 
-double bdd_dbg_storageFill(bdd_t s){
-  return hashSet_dbg_fill(P(s)->storage);
-}
-
-double bdd_dbg_hashConflictRate(bdd_t s){
-  return hashSet_dbg_hashConflictRate(P(s)->storage);
-}
+T__THREAD_SAFE double bdd_dbg_storageFill(bdd_t s){ return addOp_dbg_storageFill(B2A(s)); }
+T__THREAD_SAFE double bdd_dbg_hashConflictRate(bdd_t s){ return addOp_dbg_hashConflictRate(B2A(s)); }
 
 
-// -- bdd_dbg_print
 
 
-static void bdd_dbg_print__i(int dbg_lvl, bdd_t s, bdd_fn_t val, int padding){
-  if(bdd_is_leaf(val)){
-    if(val == BDD_TRUE){
-      char toPrint[padding + strlen("TRUE\n") + 1];
-      for(int i = 0; i < padding; i++) toPrint[i] = ' ';
-      strcpy(toPrint+padding, "TRUE\n");
-      DBG(dbg_lvl, "%s", toPrint)
-    }else{
-      char toPrint[padding + strlen("FALSE\n") + 1];
-      for(int i = 0; i < padding; i++) toPrint[i] = ' ';
-      strcpy(toPrint+padding, "FALSE\n");
-      DBG(dbg_lvl, "%s", toPrint)
-    }
-    return;
-  }
-
-  {
-    char toPrint[padding + 4 + 10 + 1];
-    for(int i = 0; i < padding; i++) toPrint[i] = ' ';
-    sprintf(toPrint + padding, "{ %lld:\n", (long long) bdd_get_input(val));
-    DBG(dbg_lvl, "%s", toPrint)
-  }
-
-  bdd_node_t a = bdd_get_node(s, val);
-  bdd_dbg_print__i(dbg_lvl, s, a.v[0], padding+2);
-  bdd_dbg_print__i(dbg_lvl, s, a.v[1], padding+2);
-
-  {
-    char toPrint[padding + 4 + 10 + 1];
-    for(int i = 0; i < padding; i++) toPrint[i] = ' ';
-    strcpy(toPrint+padding, "}\n");
-    DBG(dbg_lvl, "%s", toPrint)
-  }
-}
-
-static inline void bdd_dbg_print(int dbg_lvl, bdd_t s, bdd_fn_t val){
-  ON_DBG(dbg_lvl, {
-    bdd_dbg_print__i(dbg_lvl, s, val, 0);
-  })
-}
 
 
-// -- bdd_new_node
+
+// -- cacheSum
 
 
-static bdd_fn_t bdd_new_node(bdd_t s, bdd_fn_t sub0, bdd_fn_t sub1, wire_t input){
-  if(sub0 == sub1) return sub0; // simplify
-  if(bdd_is_negated(sub0)) return bdd_op_neg(bdd_new_node(s, bdd_op_neg(sub0), bdd_op_neg(sub1), input)); // ensure it's unique: have the sub0 always positive
 
-  hash_t hash;
-  {
-    bdd_node_t key;
-    memset(&key, 0, sizeof(bdd_node_t));
-    key.v[0] = sub0;
-    key.v[1] = sub1;
-    hash = hashSet_add(P(s)->storage, &key);
-  }
-  bdd_fn_t ret = ((bdd_fn_t)hash.v) | bdd_place_input(input);
-
-  DBG(DBG_LVL_DETAILED, "New node, input=%ld, sub={%llX, %llX} ret=%llX\n", (long) input, (long long) sub0, (long long) sub1, (long long) ret);
-
-  ON_DBG(DBG_LVL_TOFIX, {
-    bdd_node_t a = bdd_get_node(s, ret);
-    if(a.v[0] != sub0) FAIL("bdd_new_node, mismatch inserted sub0=%llX, a.v[0]=%llX\n", sub0, a.v[0]);
-    if(a.v[1] != sub1) FAIL("bdd_new_node, mismatch inserted sub1=%llX, a.v[1]=%llX\n", sub1, a.v[1]);
-  })
-
-  bdd_dbg_print(DBG_LVL_MAX, s, ret);
-
-  return ret;
-}
+typedef struct {
+  hashCache_t cacheSum;
+  bdd_t storage;
+  size_t numberSize;
+  wire_t numTotIns;
+  wire_t numMaskedIns;
+  wire_t numRnds;
+} bdd_sumCached_storage_t;
+#define PC(pub)   ((bdd_sumCached_storage_t *) ((bdd_sumCached_t) (pub)).bdd_sumCached)
 
 
-// -- bdd_val_single
+typedef struct{ bdd_fn_t param; } cacheSum_elem_t;
 
-
-bdd_fn_t bdd_val_single(bdd_t s, wire_t inputBit){
-  return bdd_new_node(s, BDD_FALSE, BDD_TRUE, inputBit);
-}
-
-
-// -- cache
-
-
-//#define CACHE_OP_ADD(cacheOp, op, p0, p1, RET, CODE) CODE
-
-
-#define CACHE_OP_ADD(cacheOp, p0, p1, RET, CODE) {\
-  cacheOp_elem_t CACHE_ADD__key;\
-  memset(&CACHE_ADD__key, 0, sizeof(cacheOp_elem_t));\
-  CACHE_ADD__key.param[0] = (p0);\
-  CACHE_ADD__key.param[1] = (p1);\
-\
-  if(hashCache_getValue(cacheOp, &CACHE_ADD__key, &RET)){\
-    ON_DBG(DBG_LVL_TOFIX, {\
-      if(RET == 0) FAIL("bdd: cacheOp's hashCache just returned a 0, which is an illegal index.\n")\
-    })\
-  }else{\
-    { CODE }\
-    hashCache_set(cacheOp, &CACHE_ADD__key, &RET);\
-    ON_DBG(DBG_LVL_TOFIX, {\
-      if(NUM_THREADS == 0){\
-        bdd_fn_t CACHE_ADD__r;\
-        if(!hashCache_getValue(cacheOp, &CACHE_ADD__key, &CACHE_ADD__r)) FAIL("bdd: cacheOp's hashCache couldn't find a valud just added.")\
-        if(CACHE_ADD__r != RET) FAIL("bdd: cacheOp's hashCache returned a value that wasn't what inserted.")\
-      }\
-    })\
-  }\
-}
-
-#define CACHE_SUM_ADD(cacheSum, rnds, V, RET, CODE) {\
+#define CACHE_SUM_ADD(cached, V, RET, CODE) {\
   cacheSum_elem_t CACHE_ADD__key;\
   memset(&CACHE_ADD__key, 0, sizeof(cacheSum_elem_t));\
   CACHE_ADD__key.param = (V);\
-  CACHE_ADD__key.numRnds = (rnds);\
-  if(!hashCache_getValue(cacheSum, &CACHE_ADD__key, &RET)){\
+  if(!hashCache_getValue(PC(cached)->cacheSum, &CACHE_ADD__key, &RET)){\
     { CODE }\
-    hashCache_set(cacheSum, &CACHE_ADD__key, &RET);\
-    ON_DBG(DBG_LVL_TOFIX, {\
-      if(NUM_THREADS == 0){\
-        fixed_cell_t CACHE_ADD__r;\
-        if(!hashCache_getValue(cacheSum, &CACHE_ADD__key, &CACHE_ADD__r)) FAIL("bdd: cacheOp's hashCache couldn't find a valud just added.")\
-        if(CACHE_ADD__r != RET) FAIL("bdd: cacheOp's hashCache returned a value that wasn't what inserted.")\
-      }\
-    })\
+    hashCache_set(PC(cached)->cacheSum, &CACHE_ADD__key, &RET);\
   }\
 }
 
 
-// -- bdd_op_and
 
-
-bdd_fn_t bdd_op_and(bdd_t s, bdd_fn_t val0, bdd_fn_t val1){
-  DBG(DBG_LVL_DETAILED, "bdd_op_and, v0=%llX  v1=%llX\n", (long long) val0, (long long) val1);
-  bdd_dbg_print(DBG_LVL_MAX, s, val0);
-  bdd_dbg_print(DBG_LVL_MAX, s, val1);
-
-  bdd_fn_t val[2] = { val0, val1 };
-  for(int i = 0; i < 2; i++){
-    if(bdd_is_leaf(val[i])){
-      if(val[i] == BDD_FALSE) return BDD_FALSE;
-      else return val[1-i]; // return the other
-    }
-  }
-
-  bdd_fn_t ret;
-  CACHE_OP_ADD(P(s)->cacheAnd, val0, val1, ret, {
-    bdd_node_t a[2];
-    a[0] = bdd_get_node(s, val0);
-    a[1] = bdd_get_node(s, val1);
-    wire_t i[2];
-    i[0] = bdd_get_input(val0);
-    i[1] = bdd_get_input(val1);
-
-    int min = i[0] <= i[1] ? 0 : 1;  // parameter with the minimal input, minimal -> first.
-    int max = 1-min; // parameter with the other input.
-
-    bdd_fn_t sub[2];
-    if(i[min] == i[max]){
-      sub[0] = bdd_op_and(s, a[0].v[0], a[1].v[0]); // sub 0, v[0]
-      sub[1] = bdd_op_and(s, a[0].v[1], a[1].v[1]);
-    }else{
-      sub[0] = bdd_op_and(s, a[min].v[0], val[max]);  // sub 0, v[0]
-      sub[1] = bdd_op_and(s, a[min].v[1], val[max]); // only open the one with the first input, leave the other unchanged.
-    }
-    ret = bdd_new_node(s, sub[0], sub[1], i[min]);
-  })
+T__THREAD_SAFE bdd_sumCached_t bdd_sumCached_new(bdd_t storage, wire_t numTotIns, wire_t numMaskedIns){
+  bdd_sumCached_t ret = { mem_calloc(sizeof(bdd_sumCached_storage_t), 1, "the sumCache's storage for BDDs!") };
+  PC(ret)->cacheSum = hashCache_new(sizeof(cacheSum_elem_t), sizeof(number_t) * NUMBER_SIZE(numTotIns + 3), "bdd's cacheSum");
+  PC(ret)->storage = storage;
+  PC(ret)->numTotIns = numTotIns;
+  PC(ret)->numMaskedIns = numMaskedIns;
+  PC(ret)->numberSize = NUMBER_SIZE(numTotIns + 3);
+  PC(ret)->numRnds = numTotIns - numMaskedIns;
   return ret;
+}
+void bdd_sumCached_delete(bdd_sumCached_t cached){
+  hashCache_delete(PC(cached)->cacheSum);
+  mem_free(PC(cached));
 }
 
 
-// -- bdd_op_xor
 
-
-bdd_fn_t bdd_op_xor(bdd_t s, bdd_fn_t val0, bdd_fn_t val1){
-  DBG(DBG_LVL_DETAILED, "bdd_op_xor, v0=%llX  v1=%llX\n", (long long) val0, (long long) val1);
-  bdd_dbg_print(DBG_LVL_MAX, s, val0);
-  bdd_dbg_print(DBG_LVL_MAX, s, val1);
-
-  bdd_fn_t val[2] = { val0, val1 };
-  for(int i = 0; i < 2; i++){
-    if(bdd_is_leaf(val[i])){
-      DBG(DBG_LVL_DETAILED, "param %d is the leaf %s\n", i, val[i] == BDD_FALSE ? "F" : "T");
-      if(val[i] == BDD_FALSE) return val[1-i]; // return the other
-      else return bdd_op_neg(val[1-i]); // xor true = not
-    }
-  }
-
-  bdd_fn_t ret;
-  CACHE_OP_ADD(P(s)->cacheXor, val0, val1, ret, {
-    bdd_node_t a[2];
-    wire_t i[2];
-    for(int j = 0; j < 2; j++){
-      a[j] = bdd_get_node(s, val[j]);
-      i[j] = bdd_get_input(val[j]);
-    }
-
-    int min = i[0] < i[1] ? 0 : 1;  // parameter with the minimal input, minimal -> first.
-    int max = 1-min; // parameter with the other input.
-
-    bdd_fn_t sub[2];
-    if(i[min] == i[max]){
-      sub[0] = bdd_op_xor(s, a[0].v[0], a[1].v[0]); // sub 0, v[0]
-      sub[1] = bdd_op_xor(s, a[0].v[1], a[1].v[1]);
-
-      DBG(DBG_LVL_MAX, "a[0], i[0]=%d\n", i[0]);
-      bdd_dbg_print(DBG_LVL_MAX, s, a[0].v[0]);
-      bdd_dbg_print(DBG_LVL_MAX, s, a[0].v[1]);
-      DBG(DBG_LVL_MAX, "a[1], i[1]=%d\n", i[1]);
-      bdd_dbg_print(DBG_LVL_MAX, s, a[1].v[0]);
-      bdd_dbg_print(DBG_LVL_MAX, s, a[1].v[1]);
-      DBG(DBG_LVL_MAX, "sub, i=%d\n", i[min]);
-      bdd_dbg_print(DBG_LVL_MAX, s, sub[0]);
-      bdd_dbg_print(DBG_LVL_MAX, s, sub[1]);
-    }else{
-      sub[0] = bdd_op_xor(s, a[min].v[0], val[max]);  // sub 0, v[0]
-      sub[1] = bdd_op_xor(s, a[min].v[1], val[max]); // only open the one with the first input, leave the other unchanged.
-
-      DBG(DBG_LVL_MAX, "a[min], i[min]=%d\n", i[min]);
-      bdd_dbg_print(DBG_LVL_MAX, s, a[min].v[0]);
-      bdd_dbg_print(DBG_LVL_MAX, s, a[min].v[1]);
-      DBG(DBG_LVL_MAX, "a[max]\n");
-      bdd_dbg_print(DBG_LVL_MAX, s, val[max]);
-      DBG(DBG_LVL_MAX, "sub, i=%d\n", i[min]);
-      bdd_dbg_print(DBG_LVL_MAX, s, sub[0]);
-      bdd_dbg_print(DBG_LVL_MAX, s, sub[1]);
-    }
-    ret = bdd_new_node(s, sub[0], sub[1], i[min]);
-  })
-  return ret;
-}
-
-
-// -- getFlatened
+// -- sumRnd
 
 
 
-T__THREAD_SAFE static void getFlatened(bdd_t s, bdd_fn_t val, bdd_fn_t *ret, wire_t numMaskedIns, size_t lowest, shift_t input){
-  if(bdd_is_leaf(val)){
-    DBG(DBG_LVL_MAX, "getFlatened of leaf %s with numMaskedIns=%ld, ret=%llX, lowest=%ld, input=%ld\n", val == BDD_TRUE ? "T" : "F", (long) numMaskedIns, ret, (long) lowest, (long) input);
-    for(size_t i = 0; i < 1ull << (numMaskedIns - input); i++)
-      ret[(i << input) | lowest] = val;
-    DBG(DBG_LVL_MAX, "leaf's return set\n");
+T__THREAD_SAFE static void sumRnd(bdd_sumCached_t c, bdd_fn_t val, number_t *ret){
+  size_t size = PC(c)->numberSize;
+
+  if(addOp_isLeafElseNode(val)){
+    number_one(size, PC(c)->numRnds, ret);
+    bool isPos;
+    addOp_getLeaf(val, NULL, &isPos);
+
+    if(isPos)   // (-1)^F = (-1)^0 = 1        (-1)^T = (-1)^1 = -1
+      number_local_negation(size, ret);
     return;
   }
-  DBG(DBG_LVL_MAX, "getFlatened of %llX with numMaskedIns=%ld, ret=%llX, lowest=%ld, input=%ld\n", (long long) val, (long) numMaskedIns, ret, (long) lowest, (long) input);
 
-  bdd_node_t a = bdd_get_node(s, val);
-  wire_t in = bdd_get_input(val);
+  CACHE_SUM_ADD(c, val, *ret, {
+    bdd_fn_t v[2];
+    addOp_getNode(B2A(PC(c)->storage), val, NULL, &v[0], &v[1]);
+
+    number_t r0[size];
+    sumRnd(c, v[0], r0);
+
+    number_t r1[size];
+    sumRnd(c, v[1], r1);
+
+    number_add(size, r0, r1, ret);
+    number_local_div2(size, ret);
+  })
+}
+
+
+
+
+// -- transform
+
+
+
+
+T__THREAD_SAFE static void doSubTransform_block(bdd_sumCached_t c, number_t *ret, size_t fixed, size_t input, shift_t blockSize){ // a block of 2^{blockSize} leaves all the same
+  if(blockSize == 0) return; //this if is for optimization. nothing changes if removed.
+  size_t numSize = PC(c)->numberSize;
+
+  // the first element of the transform is the sum of them, which means the value times the number of values
+  number_local_lshift(numSize, & ret[fixed * numSize], blockSize);
+  // the other elements of the transform contain a difference and are all zero
+  for(size_t i = 1; i < 1ull << blockSize; i++)
+    number_zero(numSize, & ret[((i << input) | fixed) * numSize]);
+}
+
+
+T__THREAD_SAFE static void doSubTransform(bdd_sumCached_t c, bdd_fn_t val, number_t *ret, size_t lowest, size_t input){
+  size_t numMaskedIns = PC(c)->numMaskedIns;
+  size_t numSize = PC(c)->numberSize;
+
+  if(addOp_isLeafElseNode(val)){
+    sumRnd(c, val, & ret[lowest * numSize]);
+    doSubTransform_block(c, ret, lowest, input, numMaskedIns - input);
+    return;
+  }
+
+  wire_t in;
+  bdd_fn_t a[2];
+  addOp_getNode(B2A(PC(c)->storage), val, &in, &a[0], &a[1]);
 
   if(in >= numMaskedIns){
-    for(size_t i = 0; i < 1ull << (numMaskedIns - input); i++)
-      ret[(i << input) | lowest] = val;
-    DBG(DBG_LVL_MAX, "return set, all bdd nodes relative to randoms\n");
+    sumRnd(c, val, & ret[lowest * numSize]);
+    doSubTransform_block(c, ret, lowest, input, numMaskedIns - input);
     return;
   }
 
-  DBG(DBG_LVL_MAX, "getFlatened of %llX, in=%ld\n", (long long) val, (long) in);
-  getFlatened(s, a.v[0], ret, numMaskedIns, lowest, in+1);
-  getFlatened(s, a.v[1], ret, numMaskedIns, lowest | (1ll << in), in+1);
+  doSubTransform(c, a[0], ret, lowest, in+1);
+  doSubTransform(c, a[1], ret, (1ll << in) | lowest, in+1);
+
+  // calculate this step of the fast walsh-hadamard transform
 
   //    u   m lowest
   //   /  \/ \/\   .
   // 89786543210
   //  |   |  |
   // nmi in  input
-  for(size_t u = 0; u < 1ull << (numMaskedIns - in); u++)
-    for(size_t m = 1; m < 1ull << (in - input); m++)
-      ret[(u << in) | (m << input) | lowest] = ret[(u << in) | lowest];
-  DBG(DBG_LVL_MAX, "getFlatened of $llX's return set\n", (long long) val);
+  for(size_t u = 0; u < 1ull << (numMaskedIns - (in+1)); u++){
+    number_t *v0 = & ret[((u << (in+1)) | lowest) * numSize];
+    number_t *v1 = & ret[((u << (in+1)) | (1ll << in) | lowest) * numSize];
+
+    number_t sum[numSize];
+    number_t diff[numSize];
+
+    number_add(numSize, v0, v1, sum);
+    number_sub(numSize, v0, v1, diff);
+
+    number_copy(numSize, sum, v0);
+    number_copy(numSize, diff, v1);
+  }
+
+  // if a set of  m   bits are all the same, call the calculation for a block
+  if(in != input){ // this if is only for optimization, there is one already inside the cycle.
+    for(size_t u = 0; u < 1ull << (numMaskedIns - in); u++){
+      doSubTransform_block(c, ret, (u << in) | lowest, input, in - input);
+    }
+  }
 }
 
-T__THREAD_SAFE void bdd_get_flattenedInputs(bdd_t s, bdd_fn_t val, wire_t numMaskedIns, bdd_fn_t *ret){
-  DBG(DBG_LVL_DETAILED, "bdd_get_flattenedInputs of %llX with numMaskedIns=%d\n", (long long) val, numMaskedIns);
-  getFlatened(s, val, ret, numMaskedIns, 0, 0);
-}
 
 
-
-T__THREAD_SAFE static fixed_cell_t sumRandomsPN1(bdd_t s, bdd_fn_t val, wire_t numRnds, int depth){
-  DBG(DBG_LVL_MAX, "sumRandomsPN1 with val=%llX numRnds=%ld depth=%d\n", (long long) val, (long) numRnds, depth);
-  if(bdd_is_negated(val)) return -sumRandomsPN1(s, bdd_op_neg(val), numRnds, depth+1);
-  if(bdd_is_leaf(val)) return -( ((fixed_cell_t) 1) << numRnds );
-
-  fixed_cell_t ret;
-  CACHE_SUM_ADD(P(s)->cacheSum, numRnds, val, ret, {
-    bdd_node_t a = bdd_get_node(s, val);
-    bdd_fn_t v0 = a.v[0];
-    bdd_fn_t v1 = a.v[1];
-    DBG(DBG_LVL_MAX, "sumRandomsPN1: start sub nodes %llX and %llX\n", (long long) v0, (long long) v1);
-    fixed_cell_t r0 = sumRandomsPN1(s, v0, numRnds, depth+1);
-    DBG(DBG_LVL_MAX, "sumRandomsPN1: val = %llX, r0 = %f\n", (long long) val, (double) r0);
-    fixed_cell_t r1 = sumRandomsPN1(s, v1, numRnds, depth+1);
-    DBG(DBG_LVL_MAX, "sumRandomsPN1: val = %llX, r1 = %f\n", (long long) val, (double) r1);
-    ret = (r0 + r1)/2; // /2 as each covers half the column space
-  })
-  return ret;
-}
-
-T__THREAD_SAFE fixed_cell_t bdd_get_sumRandomsPN1(bdd_t s, bdd_fn_t val, wire_t numRnds){
-  DBG(DBG_LVL_DETAILED, "bdd_get_sumRandomsPN1 of %llX with numRnds=%d\n", (long long) val, numRnds);
-  fixed_cell_t ret = sumRandomsPN1(s, val, numRnds, 1);
-  DBG(DBG_LVL_DETAILED, "bdd_get_sumRandomsPN1 of %llX is %f\n", (long long) val, (double) ret);
-  return ret;
+T__THREAD_SAFE void bdd_sumCached_transform(bdd_sumCached_t cached, bdd_fn_t val, number_t *ret){  // ret contains  1ll << numMaskedIns  blocks of  PC(pub)->numBits  num_t
+  doSubTransform(cached, val, ret, 0, 0);
 }

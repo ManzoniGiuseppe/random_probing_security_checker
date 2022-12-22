@@ -33,12 +33,12 @@ typedef struct {
   void *state;
 
   gadget_wireId_t (*rnd)(void *state);
-  gadget_wireId_t (*in)(void *state, int numIn, int numShare);
+  gadget_wireId_t (*in)(void *state, wire_t numIn, wire_t numShare);
 
   gadget_wireId_t (*not)(void *state, gadget_wireId_t v);
   gadget_wireId_t (*binary)(void *state, int operation /*GADGET_BIN_**/, gadget_wireId_t v0, gadget_wireId_t v1);
 
-  void (*out)(void *state, gadget_wireId_t v, int numOut, int numShare);
+  void (*out)(void *state, gadget_wireId_t v, wire_t numOut, wire_t numShare);
 } gadget_fnBuilder_t;
 
 typedef struct {

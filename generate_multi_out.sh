@@ -76,12 +76,12 @@ function execGadget(){
 
   echo $name - ${maxAllowedCoeff_rps} - ${maxAllowedCoeff_rpc} = ${maxCoeff} - ${d}
 
-  for op in $(echo -e "rpsCor3\nrpsCor2\nrpsCor1") ; do
+  for op in $(echo -e "rpsVraps\nrpsCor3\nrpsCor2\nrpsCor1") ; do
     findCoeffAndSaveResults "$file" "--$op" "$mainDir/$name/$op" "$maxCoeff" "${maxAllowedCoeff_rps}"
   done
 
   local t=$[d / 2] # ignore the others.
-  for op in $(echo -e "rpcCor2\nrpcCor1") ; do
+  for op in $(echo -e "rpcVraps\nrpcCor2\nrpcCor1") ; do
     findCoeffAndSaveResults "$file" "--${op} -t $t" "$mainDir/$name/${op}__$t" "$maxCoeff" "${maxAllowedCoeff_rpc}"
   done
 }

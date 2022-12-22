@@ -18,11 +18,11 @@ typedef struct{
   uint_least64_t arrayHasCoordWithCorr; // array of bits. each position x means: does exists a spectral coordinate with the x-th bit set that has correlation with the selected wire.
 } rowInfo_v_t;
 
-T__THREAD_SAFE static void getInfo(__attribute__((unused)) void *getInfo_param, wire_t d, wire_t numIns, fixed_cell_t *transform, void *ret_info){
+T__THREAD_SAFE static void getInfo(__attribute__((unused)) void *getInfo_param, wire_t d, wire_t numIns, size_t numSize, number_t *transform, void *ret_info){
   rowInfo_v_t *ret = ret_info;
   ret->arrayHasCoordWithCorr = 0;
   for(size_t i = 1; i < (1ull << (d*numIns)); i++)
-    if(transform[i] != 0)
+    if(!number_isZero(numSize, & transform[i * numSize]))
       ret->arrayHasCoordWithCorr |= i;
 }
 

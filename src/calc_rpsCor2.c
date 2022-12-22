@@ -24,15 +24,15 @@ typedef struct{
   double sumCorr;
 } rowInfo_v_t;
 
-T__THREAD_SAFE static void getInfo(void *getInfo_param, wire_t d, wire_t numIns, fixed_cell_t *transform, void *ret_info){
+T__THREAD_SAFE static void getInfo(void *getInfo_param, wire_t d, wire_t numIns, size_t numSize, number_t *transform, void *ret_info){
   double sdMax = 1 - ldexp(1.0, -numIns);
 
   getInfo_t *p = getInfo_param;
   rowInfo_v_t *ret = ret_info;
 
   for(size_t i = 1; i < (1ull << numIns) && ret->sumCorr < sdMax; i++){
-    fixed_cell_t it = transform[calcUtils_intExpandByD(d, i)];
-    ret->sumCorr += ldexp(ABS(it),
+    number_t *it = & transform[calcUtils_intExpandByD(d, i) * numSize];
+    ret->sumCorr += ldexp(ABS(*(int32_t*)it), // TODO do the actual conversion
       - p->numTotIns // fixed_cell_t is in fixed point notation. That is handled here.
       - 1  // a /2, see the formula
     );
@@ -68,7 +68,7 @@ void calc_rpsCor2(gadget_t *g, wire_t maxCoeff, double *ret_coeffs){
     .getInfo_param = &getInfo_param,
     .getInfo = getInfo
   };
-  wrapper_t w = wrapper_new(g, maxCoeff, -1, w_gen, 1, iterateOverUniqueBySubrows, "rpsCor2");
+  wrapper_t w = wrapper_new(g, maxCoeff, 0, w_gen, 1, iterateOverUniqueBySubrows, "rpsCor2");
 
   memset(ret_coeffs, 0, sizeof(double) * (g->numTotProbes+1));
   ITERATE_OVER_PROBES(maxCoeff, g, probes, coeffNum, {

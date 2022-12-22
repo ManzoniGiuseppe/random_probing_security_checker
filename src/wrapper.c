@@ -32,7 +32,7 @@ typedef struct{
 
 static bool tryNext(void *info, bitArray_t next){
   tryNext_t *s = info;
-  if(s->t != -1) // RPC
+  if(s->t != 0)
     if(row_tryNext_outLeqT(next, s->numOuts, s->d, s->t)) return 1;
   return row_tryNext_probeLeqMaxCoeff(next, s->numOuts * s->d, s->numTotOuts, s->maxCoeff);
 }
@@ -80,7 +80,7 @@ void iterateOverUniqueBySubrows_fn(void *p){
 wrapper_t wrapper_new(
   gadget_t *g,
   wire_t maxCoeff,
-  wire_t t,  // >= 0 for RPC, -1 for RPS
+  wire_t t,  // >= 0 for RPC, 0 for RPS
   rowInfo_generator_t gen,
   int numAlternativeSd,
   T__THREAD_SAFE void (*iterateOverUniqueBySubrows)(gadget_t *g, wire_t maxCoeff, wire_t t, wrapper_t w),

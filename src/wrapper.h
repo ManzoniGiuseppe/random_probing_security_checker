@@ -23,7 +23,7 @@ typedef struct { void * wrapper; } wrapper_t;
 wrapper_t wrapper_new(
   gadget_t *g,
   wire_t maxCoeff,
-  wire_t t,  // >= 0 for RPC, -1 for RPS
+  wire_t t,  // >= 0 for RPC, 0 for RPS
   rowInfo_generator_t gen,
   int numAlternativeSd,
   T__THREAD_SAFE void (*iterateOverUniqueBySubrows)(gadget_t *g, wire_t maxCoeff, wire_t t, wrapper_t w),

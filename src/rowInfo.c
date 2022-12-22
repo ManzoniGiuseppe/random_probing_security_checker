@@ -21,8 +21,8 @@ typedef struct {
   rowHashed_t rows;
   rowInfo_generator_t gen;
   wire_t d;
+  size_t numberSize;
   wire_t numIns;
-  wire_t numRnds;
   rowIndexedSet_t ret;
   multithread_mtx_t *mtx;
 } info_t;
@@ -34,21 +34,22 @@ void fn_direct(void *info){
   rowHashed_t rows = p->rows;
   rowInfo_generator_t gen = p->gen;
   wire_t d = p->d;
+  size_t numberSize = p->numberSize;
   wire_t numIns = p->numIns;
-  wire_t numRnds = p->numRnds;
   rowIndexedSet_t ret = p->ret;
   multithread_mtx_t *mtx = p->mtx;
 
   ROWHASHED_ITERATE_TH(rows, index, {
     DBG(DBG_LVL_DETAILED, "index %d, obtaining transform...\n", index);
-    fixed_cell_t transform[1ll << d*numIns];
-    memset(transform, 0, d*numIns);
-    transformGenerator_getTranform(tg, index, d*numIns, numRnds, transform);
+    size_t numNoRndCols = 1ll << d*numIns;
+    number_t transform[numNoRndCols * numberSize];
+    memset(transform, 0, sizeof(number_t) * numNoRndCols * numberSize);
+    transformGenerator_getTranform(tg, index, transform);
 
     DBG(DBG_LVL_DETAILED, "obtaining info from transform...\n");
     uint8_t info[gen.infoSize];
     memset(info, 0, gen.infoSize);
-    gen.getInfo(gen.getInfo_param, d, numIns, transform, info);
+    gen.getInfo(gen.getInfo_param, d, numIns, numberSize, transform, info);
 
     DBG(DBG_LVL_DETAILED, "adding info.\n");
     if(!multithread_mtx_lock(mtx)) FAIL("rowInfo_build's fn_direct fail to lock\n")
@@ -63,21 +64,23 @@ void fn_hashTransform(void *info){
   rowHashed_t rows = p->rows;
   rowInfo_generator_t gen = p->gen;
   wire_t d = p->d;
+  size_t numberSize = p->numberSize;
   wire_t numIns = p->numIns;
-  wire_t numRnds = p->numRnds;
   rowIndexedSet_t ret = p->ret;
   multithread_mtx_t *mtx = p->mtx;
 
   ROWHASHED_ITERATE_TH(rows, index, {
     DBG(DBG_LVL_DETAILED, "index %d, obtaining transform...\n", index);
     size_t numNoRndCols = 1ll << d*numIns;
-    fixed_cell_t transform[numNoRndCols];
-    memset(transform, 0, sizeof(fixed_cell_t) * numNoRndCols);
-    transformGenerator_getTranform(tg, index, d*numIns, numRnds, transform);
+    number_t transform[numNoRndCols * numberSize];
+    memset(transform, 0, sizeof(number_t) * numNoRndCols * numberSize);
+    transformGenerator_getTranform(tg, index, transform);
 
     for(size_t i = 0; i < numNoRndCols; i++){
       if(!bitArray_get(numNoRndCols, gen.hashTheTransforms_usingPositions, i)){
-        transform[i] = 0;
+        for(size_t v = 0; v < numberSize; v++){
+          transform[i * p->numberSize + v] = 0;
+        }
       }
     }
 
@@ -93,6 +96,7 @@ typedef struct{
   rowInfo_generator_t gen;
   rowIndexedSet_t tr;
   wire_t d;
+  size_t numberSize;
   wire_t numIns;
 } info_tr2info_t;
 
@@ -106,7 +110,7 @@ void fn_tr2info(void *info){
 
   ROWINDEXEDSET_ITERATE_TH(p->tr, baseH, reducedH, transform, {
     void *info = p->tr2info[thread] + (reducedH - baseH) * gen.infoSize;
-    gen.getInfo(gen.getInfo_param, p->d, p->numIns, transform, info);
+    gen.getInfo(gen.getInfo_param, p->d, p->numIns, p->numberSize, transform, info);
   })
 }
 
@@ -136,8 +140,8 @@ T__THREAD_SAFE rowInfo_t rowInfo_build(transformGenerator_t tg, rowHashed_t rows
     .rows = rows,
     .gen = gen,
     .d = d,
+    .numberSize = NUMBER_SIZE((d*numIns+numRnds)+3),
     .numIns = numIns,
-    .numRnds = numRnds,
     .mtx = &mtx
   };
 
@@ -152,7 +156,7 @@ T__THREAD_SAFE rowInfo_t rowInfo_build(transformGenerator_t tg, rowHashed_t rows
     multithread_thr_parallel(&info, fn_direct);
   }else{
     DBG(DBG_LVL_MINIMAL, "hashing transforms\n");
-    P(ret)->tr = rowIndexedSet_new(size, sizeof(fixed_cell_t) * (1ll << d*numIns), "rowInfo's transform");
+    P(ret)->tr = rowIndexedSet_new(size, sizeof(number_t) * (1ll << d*numIns) * info.numberSize, "rowInfo's transform");
     P(ret)->isDirect = 0;
     info.ret = P(ret)->tr;
     multithread_thr_parallel(&info, fn_hashTransform);
@@ -173,7 +177,8 @@ T__THREAD_SAFE rowInfo_t rowInfo_build(transformGenerator_t tg, rowHashed_t rows
       .tr2info = P(ret)->tr2info,
       .gen = gen,
       .d = d,
-      .numIns = numIns
+      .numIns = numIns,
+      .numberSize = info.numberSize
     };
 
     multithread_thr_parallel(&info_tr2info, fn_tr2info);

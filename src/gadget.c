@@ -29,7 +29,7 @@ static gadget_wireId_t basicGadgetInfo_rnd(void *state){
   i->numRnds++;
   return 0;
 }
-static gadget_wireId_t basicGadgetInfo_in(void *state, int numIn, int numShare){
+static gadget_wireId_t basicGadgetInfo_in(void *state, wire_t numIn, wire_t numShare){
   basicGadgetInfo_t *i = state;
   i->numIns = MAX(i->numIns, numIn+1);
   i->d = MAX(i->d, numShare+1);
@@ -45,7 +45,7 @@ static gadget_wireId_t basicGadgetInfo_binary(void *state, __attribute__((unused
   i->numOperations++;
   return 0;
 }
-static void basicGadgetInfo_out(void *state, __attribute__((unused)) gadget_wireId_t v, int numOut, int numShare){
+static void basicGadgetInfo_out(void *state, __attribute__((unused)) gadget_wireId_t v, wire_t numOut, wire_t numShare){
   basicGadgetInfo_t *i = state;
   i->numOuts = MAX(i->numOuts, numOut+1);
   i->d = MAX(i->d, numShare+1);
@@ -108,7 +108,7 @@ static fnGenerator_t fnGenerator_alloc(basicGadgetInfo_t i){
     .out2op = mem_calloc(sizeof(wire_t), i.d * i.numOuts, "fnGenerator_alloc's out2op")
   };
 
-  for(int j = 0; j < numTotIns; j++)
+  for(wire_t j = 0; j < numTotIns; j++)
     ret.op[j] = (fnGenerator_op_t){
       .operation = GADGET_IN,
       .inWire = {j, 0},
@@ -127,7 +127,7 @@ static gadget_wireId_t gen_rnd(void *state){
 
   return gen->numIns * gen->d + (gen->numAllocRnds++);
 }
-static gadget_wireId_t gen_in(void *state, int numIn, int numShare){
+static gadget_wireId_t gen_in(void *state, wire_t numIn, wire_t numShare){
   fnGenerator_t *gen = state;
   return numShare + gen->d * numIn;
 }
@@ -157,7 +157,7 @@ static gadget_wireId_t gen_binary(void *state, int operation, gadget_wireId_t v0
   };
   return op;
 }
-static void gen_out(void *state, gadget_wireId_t v, int numOut, int numShare){
+static void gen_out(void *state, gadget_wireId_t v, wire_t numOut, wire_t numShare){
   fnGenerator_t *gen = state;
   gen->op[v].mult += 1; // for the input of the copy gadget, but not the output itself
 
@@ -191,7 +191,7 @@ gadget_t *gadget_fromRaw(gadget_raw_t raw){
 
   wire_t numProbes = 0;
   wire_t numTotProbes = 0;
-  for(int j = 0; j < gen.numOps; j++){
+  for(unsigned j = 0; j < gen.numOps; j++){
     if(gen.op[j].mult > 0){
        numProbes++;
        numTotProbes += gen.op[j].mult;
@@ -219,7 +219,7 @@ gadget_t *gadget_fromRaw(gadget_raw_t raw){
     probeMulteplicity[numOp] = gen.op[j].mult;
     opRelocator[j] = op[numOp++].outWire;
   }
-  for(int o = 0; o < d*numOuts; o++){
+  for(wire_t o = 0; o < d*numOuts; o++){
     wire_t j = gen.out2op[o];
     op[numProbes+o].operation = gen.op[j].operation;
     if(op[numProbes+o].operation == GADGET_IN)
@@ -298,7 +298,7 @@ void gadget_print(gadget_t *g){
   printf("NUM_PROBES=%d\n", g->numProbes);
   printf("NUM_TOT_OUTS=%d\n", g->numTotOuts);
   printf("NUM_TOT_PROBES=%d\n", g->numTotProbes);
-  for(int i = 0; i < g->numTotOuts; i++){
+  for(wire_t i = 0; i < g->numTotOuts; i++){
     printf("  ");
     printRet(g->op[i].outWire, g->d, g->numOuts, g->probeMulteplicity);
     printf(" = ");

@@ -6,7 +6,8 @@
 #You should have received a copy of the GNU General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-allowedOp=':rpsCor1:rpsCor2:rpsCor3:rpcCor1:rpcCor2:'
+#allowedOp=':rpsCor1:rpsCor2:rpsCor3:rpsVraps:rpcCor1:rpcCor2:rpcVraps:'
+allowedOp=':rpsVraps:rpcVraps:'
 maxC=4
 
 
@@ -35,7 +36,7 @@ function findCoeffAndCheckResults(){
     local c="$maxC"
   fi
 
-  echo "calculating ./rpsc --sage $file $op -c $c > _tmp_out"
+  echo "calculating ./rpsc --sage $file $op -c $c > _tmp_out ; $out"
   { timeout 10m bash -c "time ../rpsc --sage $file $op -c $c" ; } >${tmpOut} 2>&1
   local status=$?
 
@@ -48,8 +49,9 @@ function findCoeffAndCheckResults(){
     diff <(cat ${tmpOut} | grep -a '^rp[sc][a-zA-Z0-9]*-ret: ' | sed 's/^[^:]*: *//') <(cat .regression.test | grep -a "^${out}/${c}\.success: " | sed "s|${out}/${c}\.success: ||")
     if [ $? -ne 0 ] ; then
       echo "FAIL: different coefficients!" 2>&1
-      cat ${tmpOut}
-      exit 1
+      diff <(cat ${tmpOut} | grep -a '^rp[sc][a-zA-Z0-9]*-ret: ' | sed 's/^[^:]*: *//' | sed -z 's/ /\n/g') <(cat .regression.test | grep -a "^${out}/${c}\.success: " | sed "s|${out}/${c}\.success: ||" | sed -z 's/ /\n/g')
+#      cat ${tmpOut}
+#      exit 1
     fi
   fi
 }
@@ -70,14 +72,14 @@ function execGadget(){
 
   local d=$(grep -a "^#SHARES " $file | sed "s/^#SHARES //")
 
-  for op in $(echo -e "rpsCor3\nrpsCor2\nrpsCor1") ; do
+  for op in $(echo -e "rpsVraps\nrpsCor3\nrpsCor2\nrpsCor1") ; do
     if echo $allowedOp | grep -a -q ":$op:" ; then
       findCoeffAndCheckResults "$file" "--$op" "$name/$op"
     fi
   done
 
   for t in $(seq 0 $[d - 1]) ; do
-    for op in $(echo -e "rpcCor2\nrpcCor1") ; do
+    for op in $(echo -e "rpcVraps\nrpcCor2\nrpcCor1") ; do
       if echo $allowedOp | grep -a -q ":${op}:" ; then
         findCoeffAndCheckResults "$file" "--${op} -t $t" "$name/${op}__$t"
       fi
@@ -106,9 +108,9 @@ if [ $status -ne 0 ] ; then
 fi
 
 echo testing...
-#for gadget in $(cd ../gadgets ; ls *.sage) ; do
-#  execGadget $gadget ../gadgets/$gadget
-#done
+for gadget in $(cd ../gadgets ; ls *.sage) ; do
+  execGadget $gadget ../gadgets/$gadget
+done
 
 for generator in $(cd ../gadgets ; ls *.py) ; do
   for d in $(seq 2 5) ; do
